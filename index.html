@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#1d4ed8">
   <meta name="description" content="Aplicación escolar para crear, imprimir y corregir pruebas mediante cámara.">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="styles.css?v=4.2.0">
+  <link rel="stylesheet" href="styles.css?v=4.3.0">
   <title>EvalúaCam 3.9 Google OAuth</title>
 </head>
 <body>
@@ -221,7 +221,19 @@
             <label>Curso<select id="resultsCourseFilter"></select></label>
             <label>Evaluación<select id="resultsExamFilter"></select></label>
           </div>
-          <div class="actions"><button id="printFeedbackAllBtn" class="primary">Imprimir retroalimentaciones</button><button id="exportCsvBtn" class="secondary">Exportar CSV</button><button id="clearResultsBtn" class="danger">Borrar resultados</button></div>
+          <div class="feedback-print-controls">
+            <div class="feedback-print-options">
+              <label>Correcciones por página
+                <select id="feedbackPerPage">
+                  <option value="1">1 por página</option>
+                  <option value="2" selected>2 por página</option>
+                  <option value="4">4 por página</option>
+                </select>
+              </label>
+              <p id="feedbackPrintScope">Se imprimirán todos los resultados que coincidan con los filtros de Curso y Evaluación.</p>
+            </div>
+            <div class="actions"><button id="printFeedbackAllBtn" class="primary">Imprimir correcciones filtradas</button><button id="exportCsvBtn" class="secondary">Exportar CSV</button><button id="clearResultsBtn" class="danger">Borrar resultados</button></div>
+          </div>
         </div>
         <div class="results-view-tabs" role="tablist" aria-label="Vista de resultados">
           <button id="resultsListTab" class="results-tab active" role="tab" aria-selected="true">Lista de estudiantes</button>
@@ -299,10 +311,10 @@
     </main>
   </div>
   <div id="toast" class="toast"></div>
-  <script src="google-config.js?v=4.2.0"></script>
-  <script src="auth.js?v=4.2.0"></script>
+  <script src="google-config.js?v=4.3.0"></script>
+  <script src="auth.js?v=4.3.0"></script>
   <script src="https://accounts.google.com/gsi/client?hl=es-419" async defer></script>
-  <script src="cloud-sync.js?v=4.2.0"></script>
-  <script src="app.js?v=4.2.0"></script>
+  <script src="cloud-sync.js?v=4.3.0"></script>
+  <script src="app.js?v=4.3.0"></script>
 </body>
 </html>
