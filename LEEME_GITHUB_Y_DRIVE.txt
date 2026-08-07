@@ -1,0 +1,19 @@
+PUBLICACION
+1. Suba todos los archivos de esta carpeta a la raiz del repositorio GitHub Pages.
+2. Configure google-config.js antes de publicar.
+3. En Google Cloud, autorice el origen https://SU_USUARIO.github.io.
+4. En Apps Script establezca EC_GOOGLE_CLIENT_ID con el mismo Client ID.
+5. Actualice la implementacion /exec de Apps Script.
+
+No use Firebase ni sus claves.
+
+
+ACTUALIZACION 4.0.2 - AUTORIZACION OBLIGATORIA
+1. Reemplace Code.gs y appsscript.json en Apps Script.
+2. Guarde y recargue el editor.
+3. Seleccione la función autorizarEvaluaCam y pulse Ejecutar.
+4. Acepte TODOS los permisos solicitados.
+5. Después ejecute setupEvaluaCamAPI.
+6. Cree una nueva versión de la implementación web.
+
+La función setupEvaluaCamAPI por sí sola no solicita el permiso UrlFetchApp.
