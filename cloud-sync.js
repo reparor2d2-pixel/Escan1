@@ -33,6 +33,7 @@
     if(document.querySelector('#results.view.active'))window.renderResults?.();
   }
   async function saveResult(result,imageDataUrl,nameImageDataUrl=''){return request('saveResult',{result,imageDataUrl,nameImageDataUrl})}
+  async function getCapturePreviews(resultIds){const d=await request('getCapturePreviews',{resultIds:Array.isArray(resultIds)?resultIds:[]});return d.previews||{}}
   async function pullInitialData({mergeLocal=true}={}){
     if(pulling||!isConfigured()||!window.state||!window.EvaluaCamAuth?.currentUser?.())return false;
     pulling=true;setStatus('Cargando sus datos desde Google…','syncing');
@@ -82,6 +83,6 @@
   function startPeriodicPull(){clearInterval(pullTimer);pullTimer=setInterval(()=>{if(document.visibilityState==='visible'&&window.EvaluaCamAuth?.currentUser?.())pullInitialData({mergeLocal:false})},120000)}
   window.addEventListener('focus',()=>{if(hydrated&&!pulling)pullInitialData({mergeLocal:false})});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&hydrated&&!pulling)pullInitialData({mergeLocal:false})});
-  window.EvaluaCamCloud={request,saveResult,syncState,queueStateSync,pullInitialData,isConfigured};
+  window.EvaluaCamCloud={request,saveResult,getCapturePreviews,syncState,queueStateSync,pullInitialData,isConfigured};
   window.addEventListener('DOMContentLoaded',()=>{bindUI();startPeriodicPull()});
 })();
