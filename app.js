@@ -623,21 +623,54 @@ function renderAnswerDetail(){
   const box=$('#answerDetail'),r=state.results.find(x=>x.id===state.selectedResultId);if(!r){box.className='empty-state';box.textContent='Seleccione un estudiante de la lista.';return}
   const e=state.exams.find(x=>x.id===r.examId);if(!e){box.className='empty-state';box.textContent='No se encontró la evaluación asociada.';return}
   const items=e.key.map((correct,i)=>{const answer=r.answers?.[i]||'';const status=answer===correct?'correct':answer?'wrong':'blank';const shown=answer==='*'?'Múltiple':(answer||'—');const label=status==='correct'?'Correcta':status==='wrong'?(answer==='*'?'Incorrecta (múltiple)':'Incorrecta'):'Sin respuesta';return `<tr class="${status}"><td>${i+1}</td><td><span class="answer-pill student-answer">${shown}</span></td><td><span class="answer-pill correct-answer">${correct}</span></td><td>${label}</td></tr>`}).join('');
-  const img=resultNameImageSrc(r);box.className='';box.innerHTML=`<div class="detail-header"><div><span class="eyebrow">HOJA CORREGIDA</span><h2>${esc(r.student)}</h2>${img?`<img loading="lazy" decoding="async" class="detail-name-crop" src="${esc(img)}" alt="Nombre manuscrito capturado">`:''}<p>${esc(courseName(r.courseId))} · ${esc(e.name)}</p></div><div class="detail-score"><strong>${r.grade}</strong><span>${r.correct}/${r.total} · ${r.pct}%</span></div></div><div class="legend"><span><i class="dot correct-dot"></i>Correcta</span><span><i class="dot wrong-dot"></i>Incorrecta</span><span><i class="dot blank-dot"></i>Sin respuesta</span></div><div class="table-wrap answer-comparison"><table><thead><tr><th>Pregunta</th><th>Respuesta estudiante</th><th>Respuesta correcta</th><th>Resultado</th></tr></thead><tbody>${items}</tbody></table></div><div class="actions"><button id="printParentFeedbackBtn" class="primary">Imprimir retroalimentación</button><button id="printCorrectedBtn" class="secondary">Imprimir detalle</button></div>`;
-  $('#printCorrectedBtn').onclick=()=>window.print();$('#printParentFeedbackBtn').onclick=()=>printFeedbackReports([r]);
+  const img=resultNameImageSrc(r);box.className='';box.innerHTML=`<div class="detail-header"><div><span class="eyebrow">HOJA CORREGIDA</span><h2>${esc(r.student)}</h2>${img?`<img loading="lazy" decoding="async" class="detail-name-crop" src="${esc(img)}" alt="Nombre manuscrito capturado">`:''}<p>${esc(courseName(r.courseId))} · ${esc(e.name)}</p></div><div class="detail-score"><strong>${r.grade}</strong><span>${r.correct}/${r.total} · ${r.pct}%</span></div></div><div class="legend"><span><i class="dot correct-dot"></i>Correcta</span><span><i class="dot wrong-dot"></i>Incorrecta</span><span><i class="dot blank-dot"></i>Sin respuesta</span></div><div class="table-wrap answer-comparison"><table><thead><tr><th>Pregunta</th><th>Respuesta estudiante</th><th>Respuesta correcta</th><th>Resultado</th></tr></thead><tbody>${items}</tbody></table></div>`;
 }
 function feedbackAnswerText(answer){return answer==='*'?'Múltiple':answer||'—'}
-function buildFeedbackReport(r){
-  const e=state.exams.find(x=>x.id===r.examId);if(!e)return '';
-  const answers=e.key.map((correct,i)=>{const a=r.answers?.[i]||'',ok=a===correct,status=ok?'Correcta':a==='*'?'Múltiple':a?'Incorrecta':'Sin respuesta';return `<div class="feedback-answer ${ok?'ok':'bad'}"><b>${i+1}</b><span><small>Alumno</small>${esc(feedbackAnswerText(a))}</span><span><small>Correcta</small>${esc(correct)}</span><em>${status}</em></div>`}).join('');
-  return `<section class="feedback-page ${e.questions>60?'feedback-dense':''}"><header><div><span>RETROALIMENTACIÓN DE EVALUACIÓN</span><h1>${esc(e.name)}</h1><p>${esc(courseName(r.courseId))}${e.subject?' · '+esc(e.subject):''}</p></div><div class="feedback-grade"><small>Nota</small><strong>${esc(r.grade)}</strong><span>${r.correct}/${r.total} · ${r.pct}%</span></div></header><div class="feedback-student"><div><small>Estudiante</small><strong>${esc(r.student)}</strong></div><div><small>Fecha</small><strong>${new Date(r.date).toLocaleDateString('es-CL')}</strong></div><div><small>Versión</small><strong>${esc(e.version||'A')}</strong></div></div><div class="feedback-head"><b>N°</b><span>Respuesta del estudiante</span><span>Respuesta correcta</span><em>Resultado</em></div><div class="feedback-grid">${answers}</div><footer>EvalúaCam · Documento de retroalimentación para apoderado</footer></section>`;
+function feedbackGridColumns(questionCount,perPage){
+  if(perPage===1)return questionCount<=20?2:questionCount<=45?3:4;
+  if(perPage===2)return questionCount<=24?2:questionCount<=54?3:4;
+  return questionCount<=18?2:questionCount<=42?3:4;
 }
+function feedbackStatus(answer,correct){
+  if(answer===correct)return {label:'Correcta',short:'✓',cls:'ok'};
+  if(answer==='*')return {label:'Múltiple',short:'M',cls:'bad'};
+  if(!answer)return {label:'Sin respuesta',short:'—',cls:'blank'};
+  return {label:'Incorrecta',short:'✕',cls:'bad'};
+}
+function buildFeedbackReport(r,perPage=2){
+  const e=state.exams.find(x=>x.id===r.examId);if(!e)return '';
+  const cols=feedbackGridColumns(e.questions,perPage),rows=Math.ceil(e.questions/cols);
+  const answers=e.key.map((correct,i)=>{const a=r.answers?.[i]||'',st=feedbackStatus(a,correct);return `<div class="feedback-answer ${st.cls}" title="${esc(st.label)}"><b>${i+1}</b><span>${esc(feedbackAnswerText(a))}</span><span>${esc(correct)}</span><em>${st.short}</em></div>`}).join('');
+  return `<article class="feedback-card feedback-card-${perPage}" style="--feedback-cols:${cols};--feedback-rows:${rows}"><header><div class="feedback-title"><span>CORRECCIÓN DE EVALUACIÓN</span><h1>${esc(e.name)}</h1><p>${esc(courseName(r.courseId))}${e.subject?' · '+esc(e.subject):''}</p></div><div class="feedback-grade"><small>Nota</small><strong>${esc(r.grade)}</strong><span>${r.correct}/${r.total} · ${r.pct}%</span></div></header><div class="feedback-student"><div><small>Estudiante</small><strong>${esc(r.student)}</strong></div><div><small>Fecha</small><strong>${new Date(r.date).toLocaleDateString('es-CL')}</strong></div><div><small>Versión</small><strong>${esc(e.version||'A')}</strong></div></div><div class="feedback-answer-legend"><b>N°</b><span>Alumno</span><span>Correcta</span><em>Resultado</em></div><div class="feedback-grid">${answers}</div><div class="feedback-status-legend"><span>✓ Correcta</span><span>✕ Incorrecta</span><span>M Múltiple</span><span>— En blanco</span></div><footer>EvalúaCam · Retroalimentación para apoderado</footer></article>`;
+}
+function sortFeedbackRows(rows){
+  return [...rows].sort((a,b)=>{
+    const ca=courseName(a.courseId)||'',cb=courseName(b.courseId)||'';
+    const byCourse=ca.localeCompare(cb,'es',{sensitivity:'base'});if(byCourse)return byCourse;
+    const byStudent=String(a.student||'').localeCompare(String(b.student||''),'es',{sensitivity:'base'});if(byStudent)return byStudent;
+    const da=+new Date(a.date||0),db=+new Date(b.date||0);if(da!==db)return da-db;
+    return String(a.examName||'').localeCompare(String(b.examName||''),'es',{sensitivity:'base'});
+  });
+}
+function feedbackPrintScopeText(){
+  const courseId=$('#resultsCourseFilter')?.value||'',examId=$('#resultsExamFilter')?.value||'',course=courseId?courseName(courseId):'',exam=examId?state.exams.find(e=>e.id===examId)?.name||'':'';
+  if(course&&exam)return `Se imprimirán todos los alumnos de ${exam}, curso ${course}.`;
+  if(course)return `Se imprimirán todas las evaluaciones realizadas del curso ${course}, ordenadas por estudiante.`;
+  if(exam)return `Se imprimirán todos los resultados de ${exam}.`;
+  return 'Se imprimirán todos los resultados registrados, ordenados por curso y estudiante.';
+}
+function updateFeedbackPrintScope(){const el=$('#feedbackPrintScope');if(el)el.textContent=feedbackPrintScopeText()}
 function printFeedbackReports(rows){
-  const valid=(rows||[]).filter(r=>state.exams.some(e=>e.id===r.examId));if(!valid.length)return toast('No hay resultados para imprimir.');
-  const host=$('#parentFeedbackPrint');host.innerHTML=valid.map(buildFeedbackReport).join('');document.body.classList.add('printing-feedback');requestAnimationFrame(()=>window.print());
+  const perPage=Math.max(1,+($('#feedbackPerPage')?.value||2)),valid=sortFeedbackRows((rows||[]).filter(r=>state.exams.some(e=>e.id===r.examId)));if(!valid.length)return toast('No hay resultados para imprimir.');
+  const pages=[];for(let i=0;i<valid.length;i+=perPage){const batch=valid.slice(i,i+perPage),cards=batch.map(r=>buildFeedbackReport(r,perPage)).join('');pages.push(`<section class="feedback-sheet feedback-per-${perPage}">${cards}</section>`)}
+  const host=$('#parentFeedbackPrint');host.innerHTML=pages.join('');document.body.classList.add('printing-feedback');requestAnimationFrame(()=>window.print());
 }
 window.addEventListener('afterprint',()=>{document.body.classList.remove('printing-feedback');const host=$('#parentFeedbackPrint');if(host)host.innerHTML=''});
-$('#printFeedbackAllBtn')?.addEventListener('click',()=>{const examId=$('#resultsExamFilter').value;if(!examId)return toast('Seleccione una evaluación para imprimir las retroalimentaciones.');printFeedbackReports(filteredResults())});
+$('#feedbackPerPage')?.addEventListener('change',updateFeedbackPrintScope);
+$('#resultsCourseFilter')?.addEventListener('change',updateFeedbackPrintScope);
+$('#resultsExamFilter')?.addEventListener('change',updateFeedbackPrintScope);
+$('#printFeedbackAllBtn')?.addEventListener('click',()=>printFeedbackReports(filteredResults()));
+setTimeout(updateFeedbackPrintScope,0);
 $('#exportCsvBtn').onclick=()=>{
   const data=filteredResults();if(!data.length)return toast('No hay resultados para exportar.');
   const maxQ=Math.max(...data.map(r=>r.total||0)),qHeaders=Array.from({length:maxQ},(_,i)=>`P${i+1}`);
