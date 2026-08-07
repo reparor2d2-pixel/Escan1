@@ -1,5 +1,5 @@
-const CACHE = 'evaluacam-v4-2-0-feedback-performance';
-const ASSETS = ['./', './index.html', './styles.css?v=4.2.0', './app.js?v=4.2.0', './cloud-sync.js?v=4.2.0', './auth.js?v=4.2.0', './google-config.js?v=4.2.0', './manifest.json', './icon.svg'];
+const CACHE = 'evaluacam-v4-3-0-batch-feedback';
+const ASSETS = ['./', './index.html', './styles.css?v=4.3.0', './app.js?v=4.3.0', './cloud-sync.js?v=4.3.0', './auth.js?v=4.3.0', './google-config.js?v=4.3.0', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
