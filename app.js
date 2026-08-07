@@ -563,7 +563,7 @@ function showScanResult(e,answers,aligned=true,markerCount=6){
       const existing=state.results.find(r=>r.id===scanResultId);
       if(existing){savedOnce=true;return toast('Este resultado ya fue guardado.');}
       saving=true;setSaveButtons(true);
-      const current=calculate(),student=$('#studentNameScan').value.trim()||'Sin nombre',saved={id:scanResultId,scanSessionId:scanResultId,examId:e.id,examName:e.name,courseId:e.courseId,student,correct:current.correct,total:e.questions,pct:current.pct,grade:current.grade,date:new Date().toISOString(),answers:[...reviewed],scanConfidence:Math.round((state.lastReadDiagnostics?.alignment||0)*100),markerCount:state.lastReadDiagnostics?.markerCount||markerCount,nameImageDataUrl:state.lastStudentNameCropDataUrl||'',cloudStatus:'pending'};
+      const current=calculate(),student=$('#studentNameScan').value.trim()||'Sin nombre',saved={id:scanResultId,scanSessionId:scanResultId,examId:e.id,examName:e.name,courseId:e.courseId,student,correct:current.correct,total:e.questions,pct:current.pct,grade:current.grade,date:new Date().toISOString(),answers:[...reviewed],scanConfidence:Math.round((state.lastReadDiagnostics?.alignment||0)*100),markerCount:state.lastReadDiagnostics?.markerCount||markerCount,sheetCopies:state.lastReadDiagnostics?.copies||1,nameImageDataUrl:state.lastStudentNameCropDataUrl||'',cloudStatus:'pending'};
       const captureData=state.lastScanCaptureDataUrl||'',nameData=state.lastStudentNameCropDataUrl||'';saved.pendingCaptureDataUrl=captureData;
       state.results.unshift(saved);state.selectedResultId=saved.id;saveLocalOnly();renderStats();savedOnce=true;saving=false;
       state.lastScanCaptureDataUrl='';state.lastStudentNameCropDataUrl='';state.lastScanSessionId=null;
@@ -626,22 +626,60 @@ function renderAnswerDetail(){
   const img=resultNameImageSrc(r);box.className='';box.innerHTML=`<div class="detail-header"><div><span class="eyebrow">HOJA CORREGIDA</span><h2>${esc(r.student)}</h2>${img?`<img loading="lazy" decoding="async" class="detail-name-crop" src="${esc(img)}" alt="Nombre manuscrito capturado">`:''}<p>${esc(courseName(r.courseId))} · ${esc(e.name)}</p></div><div class="detail-score"><strong>${r.grade}</strong><span>${r.correct}/${r.total} · ${r.pct}%</span></div></div><div class="legend"><span><i class="dot correct-dot"></i>Correcta</span><span><i class="dot wrong-dot"></i>Incorrecta</span><span><i class="dot blank-dot"></i>Sin respuesta</span></div><div class="table-wrap answer-comparison"><table><thead><tr><th>Pregunta</th><th>Respuesta estudiante</th><th>Respuesta correcta</th><th>Resultado</th></tr></thead><tbody>${items}</tbody></table></div>`;
 }
 function feedbackAnswerText(answer){return answer==='*'?'Múltiple':answer||'—'}
-function feedbackGridColumns(questionCount,perPage){
-  if(perPage===1)return questionCount<=20?2:questionCount<=45?3:4;
-  if(perPage===2)return questionCount<=24?2:questionCount<=54?3:4;
-  return questionCount<=18?2:questionCount<=42?3:4;
-}
 function feedbackStatus(answer,correct){
-  if(answer===correct)return {label:'Correcta',short:'✓',cls:'ok'};
-  if(answer==='*')return {label:'Múltiple',short:'M',cls:'bad'};
-  if(!answer)return {label:'Sin respuesta',short:'—',cls:'blank'};
-  return {label:'Incorrecta',short:'✕',cls:'bad'};
+  if(answer===correct)return {label:'Correcta',short:'C',symbol:'✓',cls:'ok'};
+  if(answer==='*')return {label:'Múltiple',short:'M',symbol:'M',cls:'bad'};
+  if(!answer)return {label:'Sin respuesta',short:'—',symbol:'—',cls:'blank'};
+  return {label:'Incorrecta',short:'X',symbol:'✕',cls:'bad'};
 }
-function buildFeedbackReport(r,perPage=2){
+function feedbackQuestionColumns(questionCount,perPage){
+  if(perPage===1)return questionCount<=30?1:questionCount<=60?2:3;
+  if(perPage===2)return questionCount<=20?1:questionCount<=40?2:questionCount<=60?3:4;
+  return questionCount<=12?1:questionCount<=24?2:questionCount<=48?3:4;
+}
+function feedbackHeader(r,e,kind,nameData=''){
+  return `<div class="feedback-zip-head"><strong>${r.correct} / ${r.total} = ${r.pct}%</strong>${nameData?`<img class="feedback-name-strip" src="${nameData}" alt="Nombre manuscrito de ${esc(r.student)}">`:''}<span>${esc(r.student)} · ${esc(e.name)} · ${esc(courseName(r.courseId))}</span><small>${kind} · Nota ${esc(r.grade)} · ${new Date(r.date).toLocaleDateString('es-CL')}</small></div>`;
+}
+function buildFeedbackQuestionsReport(r,perPage=2,nameData=''){
   const e=state.exams.find(x=>x.id===r.examId);if(!e)return '';
-  const cols=feedbackGridColumns(e.questions,perPage),rows=Math.ceil(e.questions/cols);
-  const answers=e.key.map((correct,i)=>{const a=r.answers?.[i]||'',st=feedbackStatus(a,correct);return `<div class="feedback-answer ${st.cls}" title="${esc(st.label)}"><b>${i+1}</b><span>${esc(feedbackAnswerText(a))}</span><span>${esc(correct)}</span><em>${st.short}</em></div>`}).join('');
-  return `<article class="feedback-card feedback-card-${perPage}" style="--feedback-cols:${cols};--feedback-rows:${rows}"><header><div class="feedback-title"><span>CORRECCIÓN DE EVALUACIÓN</span><h1>${esc(e.name)}</h1><p>${esc(courseName(r.courseId))}${e.subject?' · '+esc(e.subject):''}</p></div><div class="feedback-grade"><small>Nota</small><strong>${esc(r.grade)}</strong><span>${r.correct}/${r.total} · ${r.pct}%</span></div></header><div class="feedback-student"><div><small>Estudiante</small><strong>${esc(r.student)}</strong></div><div><small>Fecha</small><strong>${new Date(r.date).toLocaleDateString('es-CL')}</strong></div><div><small>Versión</small><strong>${esc(e.version||'A')}</strong></div></div><div class="feedback-answer-legend"><b>N°</b><span>Alumno</span><span>Correcta</span><em>Resultado</em></div><div class="feedback-grid">${answers}</div><div class="feedback-status-legend"><span>✓ Correcta</span><span>✕ Incorrecta</span><span>M Múltiple</span><span>— En blanco</span></div><footer>EvalúaCam · Retroalimentación para apoderado</footer></article>`;
+  const cols=feedbackQuestionColumns(e.questions,perPage),rows=Math.ceil(e.questions/cols);
+  const answers=e.key.map((correct,i)=>{const a=r.answers?.[i]||'',st=feedbackStatus(a,correct);return `<div class="feedback-question-row ${st.cls}"><b>${i+1}</b><span>${esc(feedbackAnswerText(a))}</span><span>${esc(correct)}</span><em>${st.short}</em></div>`}).join('');
+  return `<article class="feedback-card feedback-question-card feedback-card-${perPage}" style="--feedback-q-cols:${cols};--feedback-q-rows:${rows}">${feedbackHeader(r,e,'Preguntas',nameData)}<div class="feedback-question-legend"><b>#</b><span>Respuesta</span><span>Respuesta correcta</span><em>Estado</em></div><div class="feedback-question-grid">${answers}</div><footer>C = correcta · X = incorrecta · M = respuesta múltiple · — = en blanco</footer></article>`;
+}
+function inferFeedbackCopies(aspect){
+  let best=1,delta=Infinity;[1,2,3].forEach(c=>{const d=Math.abs(Math.log(Math.max(.01,aspect)/pageLayoutMm(c).aspect));if(d<delta){delta=d;best=c}});return best;
+}
+function feedbackOverlaySvg(r,e,copies,w,h,{drawMarks=true}={}){
+  const layout=answerLayoutForSheet(e,copies,w,h),parts=[];
+  for(const pos of layout.positions){
+    const a=r.answers?.[pos.q]||'',correct=e.key?.[pos.q]||'',st=feedbackStatus(a,correct),idx=letters.indexOf(a),statusX=Math.max(w*.062,pos.numberX-pos.r*2.15),statusY=pos.cy+pos.r*.34;
+    if(drawMarks&&idx>=0&&idx<pos.bubbles.length){
+      const cx=pos.bubbles[idx],ringR=pos.r*1.17,stroke=st.cls==='ok'?'#14c83a':'#f22424';
+      parts.push(`<circle cx="${cx.toFixed(2)}" cy="${pos.cy.toFixed(2)}" r="${ringR.toFixed(2)}" fill="none" stroke="${stroke}" stroke-width="${Math.max(2,w*.0031).toFixed(2)}"/>`);
+    }
+    const color=st.cls==='ok'?'#14c83a':st.cls==='bad'?'#f22424':'#707070';
+    parts.push(`<text x="${statusX.toFixed(2)}" y="${statusY.toFixed(2)}" font-family="Arial,Helvetica,sans-serif" font-size="${Math.max(12,pos.r*1.35).toFixed(2)}" font-weight="900" text-anchor="middle" fill="${color}">${st.short}</text>`);
+  }
+  return parts.join('');
+}
+function buildFeedbackVectorSheet(r,e,copies=1){
+  const aspect=pageLayoutMm(copies).aspect,w=1000,h=Math.round(w/aspect),layout=answerLayoutForSheet(e,copies,w,h),marks=[];
+  for(const pos of layout.positions){
+    const a=r.answers?.[pos.q]||'',idx=letters.indexOf(a);if(idx>=0&&idx<pos.bubbles.length)marks.push(`<circle cx="${pos.bubbles[idx].toFixed(2)}" cy="${pos.cy.toFixed(2)}" r="${Math.max(4,pos.r*.72).toFixed(2)}" fill="#111" fill-opacity=".93"/>`);
+  }
+  marks.push(svgText(w*SHEET_GEOMETRY.safeLeft,h*(SHEET_GEOMETRY.fieldTop+SHEET_GEOMETRY.fieldHeight*.61),r.student,Math.max(16,w*.022),'font-weight="700" fill="#222"'));
+  return `<svg class="feedback-vector-sheet" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">${sheetSvgContent(e,copies,w,h)}${marks.join('')}${feedbackOverlaySvg(r,e,copies,w,h)}</svg>`;
+}
+function imageInfo(dataUrl){return new Promise(resolve=>{if(!dataUrl)return resolve(null);const img=new Image();img.onload=()=>resolve({width:img.naturalWidth||img.width,height:img.naturalHeight||img.height,aspect:(img.naturalWidth||img.width)/Math.max(1,img.naturalHeight||img.height)});img.onerror=()=>resolve(null);img.src=dataUrl})}
+async function buildFeedbackImageReport(r,perPage=2,captureData=''){
+  const e=state.exams.find(x=>x.id===r.examId);if(!e)return '';
+  let copies=+r.sheetCopies||0,meta=null;
+  if(captureData){meta=await imageInfo(captureData);if(!copies&&meta?.aspect)copies=inferFeedbackCopies(meta.aspect)}
+  if(!copies)copies=3;
+  let visual='';
+  if(captureData&&meta){const w=meta.width,h=meta.height;visual=`<div class="feedback-capture-frame"><svg class="feedback-corrected-scan" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Hoja escaneada corregida de ${esc(r.student)}"><image href="${captureData}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none"/>${feedbackOverlaySvg(r,e,copies,w,h)}</svg></div>`}
+  else visual=`<div class="feedback-capture-frame fallback">${buildFeedbackVectorSheet(r,e,copies)}<span class="feedback-fallback-note">Representación vectorial: la captura original no está disponible en este dispositivo.</span></div>`;
+  return `<article class="feedback-card feedback-image-card feedback-card-${perPage}">${feedbackHeader(r,e,'Imagen corregida')}${visual}<footer>Verde = correcta · Rojo = incorrecta · M = múltiple · — = en blanco</footer></article>`;
 }
 function sortFeedbackRows(rows){
   return [...rows].sort((a,b)=>{
@@ -653,19 +691,46 @@ function sortFeedbackRows(rows){
   });
 }
 function feedbackPrintScopeText(){
-  const courseId=$('#resultsCourseFilter')?.value||'',examId=$('#resultsExamFilter')?.value||'',course=courseId?courseName(courseId):'',exam=examId?state.exams.find(e=>e.id===examId)?.name||'':'';
-  if(course&&exam)return `Se imprimirán todos los alumnos de ${exam}, curso ${course}.`;
-  if(course)return `Se imprimirán todas las evaluaciones realizadas del curso ${course}, ordenadas por estudiante.`;
-  if(exam)return `Se imprimirán todos los resultados de ${exam}.`;
-  return 'Se imprimirán todos los resultados registrados, ordenados por curso y estudiante.';
+  const courseId=$('#resultsCourseFilter')?.value||'',examId=$('#resultsExamFilter')?.value||'',course=courseId?courseName(courseId):'',exam=examId?state.exams.find(e=>e.id===examId)?.name||'':'',format=$('#feedbackFormat')?.value||'both',kind=format==='image'?'imagen corregida':format==='questions'?'preguntas y respuestas':'imagen corregida + preguntas';
+  const prefix=`Formato: ${kind}. `;
+  if(course&&exam)return prefix+`Se imprimirán todos los alumnos de ${exam}, curso ${course}.`;
+  if(course)return prefix+`Se imprimirán todas las evaluaciones realizadas del curso ${course}, ordenadas por estudiante.`;
+  if(exam)return prefix+`Se imprimirán todos los resultados de ${exam}.`;
+  return prefix+'Se imprimirán todos los resultados registrados, ordenados por curso y estudiante.';
 }
 function updateFeedbackPrintScope(){const el=$('#feedbackPrintScope');if(el)el.textContent=feedbackPrintScopeText()}
-function printFeedbackReports(rows){
-  const perPage=Math.max(1,+($('#feedbackPerPage')?.value||2)),valid=sortFeedbackRows((rows||[]).filter(r=>state.exams.some(e=>e.id===r.examId)));if(!valid.length)return toast('No hay resultados para imprimir.');
-  const pages=[];for(let i=0;i<valid.length;i+=perPage){const batch=valid.slice(i,i+perPage),cards=batch.map(r=>buildFeedbackReport(r,perPage)).join('');pages.push(`<section class="feedback-sheet feedback-per-${perPage}">${cards}</section>`)}
-  const host=$('#parentFeedbackPrint');host.innerHTML=pages.join('');document.body.classList.add('printing-feedback');requestAnimationFrame(()=>window.print());
+function setFeedbackPrepareStatus(text=''){const el=$('#feedbackPrepareStatus');if(el)el.textContent=text}
+async function loadFeedbackCaptures(rows){
+  const out={};rows.forEach(r=>{if(r.pendingCaptureDataUrl)out[r.id]=r.pendingCaptureDataUrl});
+  const pending=rows.filter(r=>!out[r.id]&&r.captureId).map(r=>r.id);if(!pending.length||!window.EvaluaCamCloud?.isConfigured?.())return out;
+  const batchSize=4;for(let i=0;i<pending.length;i+=batchSize){const batch=pending.slice(i,i+batchSize);setFeedbackPrepareStatus(`Preparando imágenes ${Math.min(i+batch.length,pending.length)} de ${pending.length}…`);try{const previews=await window.EvaluaCamCloud.getCapturePreviews(batch);Object.assign(out,previews||{})}catch(err){console.warn('No se pudo cargar un lote de capturas',err)}}return out;
 }
-window.addEventListener('afterprint',()=>{document.body.classList.remove('printing-feedback');const host=$('#parentFeedbackPrint');if(host)host.innerHTML=''});
+async function loadFeedbackNamePreviews(rows){
+  const out={};rows.forEach(r=>{const src=resultNameImageSrc(r);if(src)out[r.id]=src});
+  const pending=rows.filter(r=>!out[r.id]&&r.nameImageId).map(r=>r.id);if(!pending.length||!window.EvaluaCamCloud?.isConfigured?.())return out;
+  const batchSize=20;for(let i=0;i<pending.length;i+=batchSize){const batch=pending.slice(i,i+batchSize);setFeedbackPrepareStatus(`Preparando nombres ${Math.min(i+batch.length,pending.length)} de ${pending.length}…`);try{const d=await window.EvaluaCamCloud.request('getNamePreviews',{resultIds:batch});Object.assign(out,d.previews||{})}catch(err){console.warn('No se pudieron cargar nombres para impresión',err)}}return out;
+}
+async function waitForFeedbackImages(host){
+  const images=[...(host?.querySelectorAll?.('img')||[])];if(!images.length)return;
+  await Promise.race([Promise.all(images.map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true})}))),new Promise(resolve=>setTimeout(resolve,2200))]);
+}
+async function printFeedbackReports(rows){
+  const perPage=Math.max(1,+($('#feedbackPerPage')?.value||2)),format=$('#feedbackFormat')?.value||'both',valid=sortFeedbackRows((rows||[]).filter(r=>state.exams.some(e=>e.id===r.examId)));if(!valid.length)return toast('No hay resultados para imprimir.');
+  const btn=$('#printFeedbackAllBtn');if(btn){btn.disabled=true;btn.dataset.oldText=btn.textContent;btn.textContent='Preparando…'}
+  try{
+    setFeedbackPrepareStatus(format==='questions'?'Preparando preguntas…':'Cargando capturas solo para esta impresión…');
+    const captures=format==='questions'?{}:await loadFeedbackCaptures(valid),names=format==='image'?{}:await loadFeedbackNamePreviews(valid),cards=[];
+    for(let i=0;i<valid.length;i++){
+      const r=valid[i];setFeedbackPrepareStatus(`Preparando ${i+1} de ${valid.length} resultado(s)…`);
+      if(format==='image'||format==='both')cards.push(await buildFeedbackImageReport(r,perPage,captures[r.id]||''));
+      if(format==='questions'||format==='both')cards.push(buildFeedbackQuestionsReport(r,perPage,names[r.id]||''));
+    }
+    const pages=[];for(let i=0;i<cards.length;i+=perPage)pages.push(`<section class="feedback-sheet feedback-per-${perPage}">${cards.slice(i,i+perPage).join('')}</section>`);
+    const host=$('#parentFeedbackPrint');host.innerHTML=pages.join('');document.body.classList.add('printing-feedback');setFeedbackPrepareStatus('Listo para imprimir.');await waitForFeedbackImages(host);requestAnimationFrame(()=>requestAnimationFrame(()=>window.print()));
+  }finally{if(btn){btn.disabled=false;btn.textContent=btn.dataset.oldText||'Imprimir retroalimentaciones';delete btn.dataset.oldText}}
+}
+window.addEventListener('afterprint',()=>{document.body.classList.remove('printing-feedback');const host=$('#parentFeedbackPrint');if(host)host.innerHTML='';setFeedbackPrepareStatus('')});
+$('#feedbackFormat')?.addEventListener('change',updateFeedbackPrintScope);
 $('#feedbackPerPage')?.addEventListener('change',updateFeedbackPrintScope);
 $('#resultsCourseFilter')?.addEventListener('change',updateFeedbackPrintScope);
 $('#resultsExamFilter')?.addEventListener('change',updateFeedbackPrintScope);
