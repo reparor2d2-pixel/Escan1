@@ -1,0 +1,19 @@
+EvaluaCam 3.8 Google OAuth
+
+Complete google-config.js con:
+- googleClientId: ID de cliente OAuth 2.0 para aplicacion web.
+- apiUrl: URL /exec de Apps Script.
+
+La aplicacion acepta solamente cuentas del dominio nsmquilpue.cl.
+La cuenta c.cari@nsmquilpue.cl tiene rol de administrador.
+
+
+ACTUALIZACION 4.0.2 - AUTORIZACION OBLIGATORIA
+1. Reemplace Code.gs y appsscript.json en Apps Script.
+2. Guarde y recargue el editor.
+3. Seleccione la función autorizarEvaluaCam y pulse Ejecutar.
+4. Acepte TODOS los permisos solicitados.
+5. Después ejecute setupEvaluaCamAPI.
+6. Cree una nueva versión de la implementación web.
+
+La función setupEvaluaCamAPI por sí sola no solicita el permiso UrlFetchApp.

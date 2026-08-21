@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#1d4ed8">
+  <meta name="description" content="Aplicación escolar para crear, imprimir y corregir pruebas mediante cámara.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css?v=5.0.0">
+  <title>EvalúaCam 3.9 Google OAuth</title>
+</head>
+<body>
+  <section id="authGate" class="auth-gate">
+    <div class="auth-card">
+      <div class="auth-logo">EC</div><h1>EvalúaCam</h1><p>Acceso institucional NSM Quilpué</p>
+      <div id="googleSignInButton" class="google-signin-host" aria-label="Ingresar con Google"></div>
+      <button id="retryGoogleBtn" class="retry-google-btn" type="button" hidden>Reintentar acceso con Google</button>
+      <p class="auth-help">Use su cuenta institucional <strong>@nsmquilpue.cl</strong>. No necesita crear una contraseña nueva.</p>
+      <p id="authMessage" class="auth-message"></p>
+    </div>
+  </section>
+
+  <div class="app-shell">
+    <div id="menuBackdrop" class="menu-backdrop"></div>
+    <aside class="sidebar" aria-label="Navegación principal">
+      <div class="brand">
+        <div class="brand-mark">EC</div>
+        <div><strong>EvalúaCam</strong><span>Corrección inteligente</span></div>
+      </div>
+      <nav id="nav">
+        <button class="nav-item active" data-view="dashboard">Resumen</button>
+        <button class="nav-item" data-view="courses">Cursos</button>
+        <button class="nav-item" data-view="exam">Crear prueba</button>
+        <button class="nav-item" data-view="sheet">Hoja de respuestas</button>
+        <button class="nav-item" data-view="scan">Escanear</button>
+        <button class="nav-item" data-view="results">Resultados</button>
+        <button class="nav-item" data-view="settings">Configuración</button>
+      </nav>
+      <div class="sidebar-user"><strong id="currentUserName"></strong><span id="currentUserRole"></span><button id="logoutBtn" class="sidebar-logout">Cerrar sesión</button></div><div class="sidebar-note">Información separada por cuenta institucional.</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button id="menuBtn" class="icon-btn menu-btn" aria-label="Abrir menú" aria-expanded="false">☰</button>
+        <div>
+          <h1 id="viewTitle">Resumen</h1>
+          <p id="viewSubtitle">Gestione pruebas, hojas y resultados.</p>
+        </div>
+        <div class="topbar-user"><span id="topbarAccount">Cuenta institucional</span></div><button id="installBtn" class="secondary hidden">Instalar app</button>
+      </header>
+
+      <section id="dashboard" class="view active">
+        <div class="hero card">
+          <div>
+            <span class="eyebrow">EVALUACIÓN DIGITAL</span>
+            <h2>Corrija pruebas en segundos usando la cámara del teléfono.</h2>
+            <p>Cree una clave, imprima hojas de respuesta y escanee cada hoja alineándola dentro de la guía.</p>
+            <div class="actions">
+              <button class="primary" data-go="exam">Crear nueva prueba</button>
+              <button class="secondary" data-go="scan">Escanear respuestas</button>
+            </div>
+          </div>
+          <div class="hero-visual">
+            <div class="paper-mini">
+              <div class="mini-line"></div><div class="mini-line short"></div>
+              <div class="mini-bubbles">○ ● ○ ○</div><div class="mini-bubbles">○ ○ ○ ●</div><div class="mini-bubbles">● ○ ○ ○</div>
+            </div>
+          </div>
+        </div>
+        <div class="stats-grid">
+          <article class="stat card"><span>Pruebas</span><strong id="statExams">0</strong><small>creadas</small></article>
+          <article class="stat card"><span>Correcciones</span><strong id="statScans">0</strong><small>registradas</small></article>
+          <article class="stat card"><span>Promedio</span><strong id="statAverage">—</strong><small>porcentaje</small></article>
+          <article class="stat card"><span>Última prueba</span><strong id="statLast">—</strong><small>actividad</small></article>
+        </div>
+        <div class="card dashboard-hierarchy">
+          <div class="section-head"><div><h3>Mis cursos y evaluaciones</h3><p>Cursos → pruebas → evaluaciones corregidas.</p></div><button class="secondary" data-go="courses">Administrar cursos</button></div>
+          <div id="dashboardCourses" class="dashboard-course-list"></div>
+        </div>
+        <div class="card quick-steps">
+          <h3>Flujo recomendado</h3>
+          <div class="steps">
+            <div><b>1</b><span>Configure la prueba y marque la clave correcta.</span></div>
+            <div><b>2</b><span>Imprima una hoja por estudiante.</span></div>
+            <div><b>3</b><span>Escanee cada hoja alineándola con la guía.</span></div>
+            <div><b>4</b><span>Revise y exporte resultados en CSV.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="courses" class="view">
+        <div class="two-col courses-layout">
+          <div class="card form-card">
+            <h2>Crear curso</h2>
+            <p>Organice las evaluaciones y resultados por curso.</p>
+            <label>Nombre del curso<input id="courseName" type="text" placeholder="Ej.: 6° Básico A"></label>
+            <label>Año escolar<input id="courseYear" type="number" min="2020" max="2100"></label>
+            <button id="saveCourseBtn" class="primary">Guardar curso</button>
+          </div>
+          <div class="card">
+            <div class="section-head"><div><h2>Cursos creados</h2><p>Seleccione un curso para ver sus evaluaciones.</p></div></div>
+            <div id="coursesList" class="course-grid"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="exam" class="view">
+        <div class="two-col">
+          <div class="card form-card">
+            <h2>Datos de la prueba</h2>
+            <label>Nombre de la prueba<input id="examName" type="text" placeholder="Ej.: Matemática Unidad 2"></label>
+            <label>Curso<select id="examCourseSelect"></select></label>
+            <label>Asignatura<input id="examSubject" type="text" placeholder="Ej.: Matemática"></label>
+            <label>Versión de la prueba<select id="examVersion"><option value="A">Versión A</option><option value="B">Versión B</option><option value="C">Versión C</option><option value="D">Versión D</option></select></label>
+            <div class="row">
+              <label>Número de preguntas<select id="questionCount"></select></label>
+              <label>Alternativas<select id="optionCount"><option value="4">A–D</option><option value="5">A–E</option></select></label>
+            </div>
+            <label>Exigencia (%)<input id="passThreshold" type="number" min="1" max="100" value="60"></label>
+            <label>Identificación del estudiante<select id="studentIdMode"><option value="name">Nombre escrito</option><option value="code">Código de estudiante</option><option value="both">Nombre y código</option></select></label>
+            <div class="actions"><button id="generateKeyBtn" class="secondary">Generar clave</button><button id="saveExamBtn" class="primary">Guardar prueba</button></div>
+          </div>
+          <div class="card">
+            <div class="section-head"><div><h2>Clave de respuestas</h2><p>Seleccione una alternativa por pregunta.</p></div><button id="clearKeyBtn" class="ghost">Limpiar</button></div>
+            <div id="answerKey" class="answer-key empty-state">Configure la cantidad de preguntas y pulse “Generar clave”.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="sheet" class="view">
+        <div class="card toolbar-card no-print">
+          <div>
+            <h2>Hoja de respuestas imprimible</h2>
+            <p>Plantilla OMR v13 con revisión de confianza, seis marcadores y captura automática.</p>
+          </div>
+          <div class="sheet-actions">
+            <label class="compact-label">Copias por página
+              <select id="copiesPerPage"><option value="1">1 copia</option><option value="2">2 copias</option><option value="3" selected>3 copias · horizontal</option></select>
+            </label>
+            <label class="compact-label">Perfil de impresión
+              <select id="printPreset"><option value="auto">Optimización automática</option><option value="laser">Impresora láser</option><option value="ink">Impresora de tinta</option><option value="copy">Fotocopia</option><option value="max">Máxima precisión OMR</option><option value="custom">Personalizado</option></select>
+            </label>
+            <select id="sheetExamSelect" aria-label="Seleccionar evaluación"></select>
+            <button id="togglePrintOptimizerBtn" class="secondary">Ajustar calidad</button>
+            <button id="downloadSheetImageBtn" class="secondary">Descargar PNG HD</button>
+            <button id="printSheetBtn" class="primary">Imprimir hoja</button>
+          </div>
+        </div>
+
+        <div id="printOptimizer" class="card print-optimizer no-print hidden">
+          <div class="section-head"><div><h3>Optimización profesional</h3><p>Ajuste negros, contraste y nitidez antes de imprimir.</p></div><button id="autoOptimizeBtn" class="secondary">Optimizar automáticamente</button></div>
+          <div class="optimizer-grid">
+            <label>Intensidad de negros <output id="blackLevelOut">100%</output><input id="blackLevel" type="range" min="70" max="140" value="100"></label>
+            <label>Contraste <output id="contrastOut">100%</output><input id="contrast" type="range" min="80" max="160" value="100"></label>
+            <label>Nitidez <output id="sharpnessOut">100%</output><input id="sharpness" type="range" min="0" max="200" value="100"></label>
+            <label>Grosor de círculos <output id="bubbleStrokeOut">100%</output><input id="bubbleStroke" type="range" min="80" max="180" value="115"></label>
+            <label>Tamaño de círculos <output id="bubbleSizeOut">100%</output><input id="bubbleSize" type="range" min="85" max="125" value="100"></label>
+            <label>Oscurecer marcadores <output id="markerDarknessOut">100%</output><input id="markerDarkness" type="range" min="90" max="160" value="120"></label>
+          </div>
+          <div class="quality-meter"><div><strong id="qualityScore">96%</strong><span>Calidad estimada</span></div><div class="quality-track"><i id="qualityBar"></i></div><p id="qualityAdvice">Configuración recomendada para impresión y lectura óptica.</p></div>
+        </div>
+        <div id="sheetLayoutNotice" class="sheet-layout-notice is-ok">Diseño nativo de alta legibilidad.</div><div id="sheetCanvasPreview" class="sheet-canvas-preview"></div><div id="printArea" class="sheet-paper hidden" aria-hidden="true">
+          <div class="fiducial tl"></div><div class="fiducial tr"></div><div class="fiducial ml"></div><div class="fiducial mr"></div><div class="fiducial bl"></div><div class="fiducial br"></div>
+          <div class="sheet-header">
+            <div><h2 id="sheetTitle">Hoja de respuestas</h2><p id="sheetMeta">Seleccione una prueba.</p></div>
+            <div class="sheet-code">EV-<span id="sheetCode">0000</span></div>
+          </div>
+          <div class="student-fields">
+            <div>Nombre: <span></span></div><div class="student-code-field">Código: <span></span></div><div>Curso: <span></span></div><div>Fecha: <span></span></div>
+          </div>
+          <div class="instructions">Marque completamente una sola alternativa por pregunta. Use lápiz grafito oscuro o tinta negra.</div>
+          <div id="sheetQuestions" class="sheet-questions"></div>
+          <div class="sheet-footer">EvalúaCam · Hoja diseñada para corrección mediante cámara</div>
+        </div>
+        <div id="printPages" class="print-pages" aria-hidden="true"></div>
+      </section>
+
+      <section id="scan" class="view">
+        <div class="scan-layout">
+          <div class="card scan-card">
+            <div class="section-head"><div><h2>Escáner de respuestas</h2><p>Apunte a la hoja desde cualquier ángulo razonable. La aplicación buscará las cuatro esquinas principales y usará los marcadores centrales como refuerzo, corregirá automáticamente la perspectiva y tomará la captura apenas la lectura sea segura.</p></div><select id="scanExamSelect"></select></div>
+            <div class="camera-stage" id="cameraStage">
+              <video id="video" playsinline autoplay muted></video>
+              <canvas id="captureCanvas"></canvas>
+              <canvas id="scanOverlay" class="scan-overlay" aria-hidden="true"></canvas>
+              <div class="zip-corner-zones" aria-hidden="true"><i class="z-tl"></i><i class="z-tr"></i><i class="z-bl"></i><i class="z-br"></i></div>
+              <div class="scan-live-toolbar" aria-hidden="true">
+                <button id="exitCameraBtn" class="scan-exit-btn" type="button" aria-label="Cerrar cámara">✕</button>
+                <div class="scan-live-title"><strong>Escáner OMR</strong><span id="scanLiveFormat">Formato vertical</span></div>
+                <div class="scan-live-auto"><i></i><span>Automático</span></div>
+              </div>
+              <div class="scan-frame" id="scanFrame" aria-label="Estado de detección automática">
+                <i class="scan-target guide-tl"></i><i class="scan-target guide-tr"></i>
+                <i class="scan-target guide-ml"></i><i class="scan-target guide-mr"></i>
+                <i class="scan-target guide-bl"></i><i class="scan-target guide-br"></i>
+                <span id="scanGuideLabel">Alinee aproximadamente las cuatro esquinas con los visores grandes</span>
+              </div>
+              <div class="scan-safe-note">Los visores son zonas amplias: la aplicación corrige inclinación y perspectiva automáticamente</div>
+              <div id="cameraPlaceholder" class="camera-placeholder"><div>📷</div><p>Active la cámara para comenzar</p></div>
+            </div>
+            <div class="scan-tools"><label><input id="autoCaptureScan" type="checkbox" checked> Captura automática al detectar la hoja</label><label><input id="autoEnhanceScan" type="checkbox" checked> Mejorar imagen automáticamente</label><label>Formato impreso<select id="scanTemplateCopies"><option value="0" selected>Automático (recomendado)</option><option value="1">1 por página · vertical</option><option value="2">2 por página · vertical</option><option value="3">3 por página · horizontal</option></select></label><label>Sensibilidad<select id="scanSensitivity"><option value="low">Baja</option><option value="normal" selected>Normal</option><option value="high">Alta</option></select></label></div>
+            <div class="camera-controls">
+              <button id="startCameraBtn" class="secondary">Activar cámara a pantalla completa</button>
+              <button id="captureBtn" class="primary" disabled>Capturar y corregir</button>
+              <label class="upload-btn">Subir foto<input id="imageUpload" type="file" accept="image/*" capture="environment"></label>
+            </div>
+            <p class="scan-help">Consejo: no intente hacer coincidir la hoja con un marco. Solo muéstrela completa y con buena luz; la captura se activa automáticamente en cuanto la geometría es confiable.</p>
+          </div>
+          <div class="card result-panel">
+            <h2>Resultado de lectura</h2>
+            <div id="scanResult" class="empty-state">Aún no se ha procesado ninguna hoja.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="results" class="view">
+        <div class="card results-toolbar">
+          <div><h2>Resultados por curso y evaluación</h2><p>Seleccione una evaluación para revisar a sus estudiantes y cada respuesta.</p></div>
+          <div class="result-filters">
+            <label>Curso<select id="resultsCourseFilter"></select></label>
+            <label>Evaluación<select id="resultsExamFilter"></select></label>
+          </div>
+          <div class="actions result-print-actions"><label class="compact-label">Retroalimentación<select id="feedbackPrintLayout"><option value="1">1 por hoja</option><option value="2" selected>2 por hoja horizontal</option></select></label><button id="printFeedbackBtn" class="secondary">Imprimir retroalimentación</button><button id="exportCsvBtn" class="secondary">Exportar CSV</button><button id="clearResultsBtn" class="danger">Borrar resultados</button></div>
+        </div>
+        <div class="results-view-tabs" role="tablist" aria-label="Vista de resultados">
+          <button id="resultsListTab" class="results-tab active" role="tab" aria-selected="true">Lista de estudiantes</button>
+          <button id="resultsDetailTab" class="results-tab" role="tab" aria-selected="false">Detalle del estudiante</button>
+        </div>
+        <div id="feedbackPrintPages" class="feedback-print-pages" aria-hidden="true"></div>
+        <div class="results-layout list-mode" id="resultsLayout">
+          <div class="card results-list-pane" id="resultsListPane">
+            <div class="section-head"><div><h2>Estudiantes evaluados</h2><p id="resultsContext">Seleccione un curso y una evaluación.</p></div></div>
+            <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Estudiante</th><th>Correctas</th><th>Porcentaje</th><th>Nota</th><th>Detalle</th><th></th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+          </div>
+          <div class="card answer-detail-card results-detail-pane" id="resultsDetailPane">
+            <button id="backToResultsList" class="ghost results-back-button">← Volver a la lista</button>
+            <div id="answerDetail" class="empty-state">Seleccione un estudiante de la lista.</div>
+            <div id="questionAnalytics" class="question-analytics"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="settings" class="view">
+        <div class="config-screen">
+          <div class="config-banner">
+            <div><span class="config-icon">⚙</span><strong>CONFIGURACIÓN DE IMPRESIÓN</strong><small>Personalice y optimice sus hojas de respuesta</small></div>
+            <div class="actions"><button id="resetPrintConfigBtn" class="secondary">Restablecer</button><button id="savePrintConfigBtn" class="config-save">Guardar configuración</button></div>
+          </div>
+          <div class="config-layout">
+            <aside class="config-controls">
+              <section class="config-panel"><h3><b>1</b> Opciones generales</h3>
+                <label>Copias por hoja<select id="cfgCopies"><option value="1">1 · Grande</option><option value="2">2 · Vertical</option><option value="3">3 · Horizontal</option></select></label>
+                <label>Cantidad de preguntas<select id="cfgQuestions"></select></label>
+                <label>Versión de la prueba<select id="cfgVersion"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
+              </section>
+              <section class="config-panel"><h3><b>2</b> Ajustes de apariencia</h3>
+                <label>Tamaño de letras en círculos <output id="cfgTextOut">140%</output><input id="cfgText" type="range" min="100" max="190" value="140"></label>
+                <label>Tamaño de títulos <output id="cfgTitleOut">150%</output><input id="cfgTitle" type="range" min="100" max="210" value="150"></label>
+                <label>Tamaño de instrucciones <output id="cfgInstructionsOut">165%</output><input id="cfgInstructions" type="range" min="110" max="220" value="165"></label>
+                <label>Nombre, curso y cabeceras <output id="cfgHeadersOut">175%</output><input id="cfgHeaders" type="range" min="120" max="230" value="175"></label>
+                <label>Números de preguntas <output id="cfgNumbersOut">175%</output><input id="cfgNumbers" type="range" min="120" max="230" value="175"></label>
+              </section>
+              <section class="config-panel"><h3><b>3</b> Optimización de impresión</h3>
+                <label>Intensidad de negros <output id="cfgBlackOut">125%</output><input id="cfgBlack" type="range" min="70" max="140" value="125"></label>
+                <label>Contraste <output id="cfgContrastOut">130%</output><input id="cfgContrast" type="range" min="80" max="160" value="130"></label>
+                <label>Nitidez <output id="cfgSharpOut">125%</output><input id="cfgSharp" type="range" min="0" max="200" value="125"></label>
+                <label>Grosor de círculos <output id="cfgStrokeOut">125%</output><input id="cfgStroke" type="range" min="80" max="180" value="125"></label>
+                <label>Tamaño de círculos <output id="cfgBubbleOut">120%</output><input id="cfgBubble" type="range" min="95" max="150" value="120"></label>
+                <label>Oscuridad de marcadores <output id="cfgMarkerOut">135%</output><input id="cfgMarker" type="range" min="90" max="160" value="135"></label>
+                <button id="cfgAutoBtn" class="auto-config-btn">✦ Aplicar optimización automática</button>
+              </section>
+              <section class="config-panel cloud-panel" data-admin-only hidden><h3><b>☁</b> Google Drive y base de datos</h3>
+                <label>URL de la API de Apps Script<input id="cloudApiUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec"></label>
+                <label>Clave de conexión<input id="cloudApiToken" type="password" placeholder="Clave generada en Apps Script"></label>
+                <div class="actions"><button id="cloudSaveBtn" class="primary" type="button">Guardar conexión</button><button id="cloudTestBtn" class="secondary" type="button">Probar conexión</button></div>
+                <p id="cloudStatus" class="cloud-status">Modo local. Configure la API para guardar capturas y resultados en Google Drive.</p>
+              </section>
+              <section class="config-panel admin-security" data-admin-only hidden><h3><b>🔒</b> Administración</h3><p>Dominio: <strong>@nsmquilpue.cl</strong></p><p>Administrador principal: <strong>c.cari@nsmquilpue.cl</strong></p><label>PIN para eliminar cursos con datos<input id="adminDeletePin" type="password" value="1234" maxlength="8"></label><button id="saveAdminPinBtn" class="secondary" type="button">Guardar PIN</button></section><section class="config-panel compact-grade"><h3><b>4</b> Escala de calificación</h3>
+                <div class="grade-row"><label>Mínima<input id="minGrade" type="number" min="1" max="7" step="0.1" value="1.0"></label><label>Máxima<input id="maxGrade" type="number" min="1" max="7" step="0.1" value="7.0"></label><label>Aprobación<input id="passGrade" type="number" min="1" max="7" step="0.1" value="4.0"></label></div>
+              </section>
+            </aside>
+            <section class="config-preview-panel">
+              <div class="preview-toolbar"><strong>VISTA PREVIA EN TIEMPO REAL</strong><span id="cfgPreviewMode">3 hojas por página (horizontal)</span><em>RECOMENDADO</em><label><input id="cfgSafeMargins" type="checkbox" checked> Márgenes de seguridad</label></div>
+              <div class="preview-content">
+                <div id="configPreviewGrid" class="config-preview-grid copies-4"></div>
+                <aside class="preview-info">
+                  <div class="info-card"><h4>ⓘ INFORMACIÓN</h4><p>Los cambios se muestran inmediatamente. La configuración guardada también se aplica al PNG y a la impresión.</p></div>
+                  <div class="tips-card"><h4>CONSEJOS PARA MAYOR PRECISIÓN</h4><p>✓ Imprima al 100% (tamaño real)</p><p>✓ Evite “Ajustar a página”</p><p>✓ Use papel blanco de 75 a 90 g/m²</p><p>✓ Mantenga visibles los seis marcadores</p></div>
+                  <div class="quality-card"><h4>CALIDAD ESTIMADA</h4><div><strong id="cfgQualityLabel">Excelente</strong><b id="cfgQualityScore">98%</b></div><span><i id="cfgQualityBar"></i></span><p id="cfgQualityText">Configuración optimizada para lectura mediante cámara.</p></div>
+                </aside>
+              </div>
+              <div class="preview-note">ⓘ Los cambios se aplican en tiempo real. Al terminar, pulse “Guardar configuración”.</div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script src="google-config.js?v=5.1.0"></script>
+  <script src="auth.js?v=5.1.0"></script>
+  <script src="https://accounts.google.com/gsi/client?hl=es-419" async defer></script>
+  <script src="cloud-sync.js?v=5.1.0"></script>
+  <script src="result-images.js?v=5.1.0"></script>
+  <script src="app.js?v=5.1.0"></script>
+</body>
+</html>
