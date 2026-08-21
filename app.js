@@ -1,4 +1,4 @@
-const APP_VERSION='5.2.0';
+const APP_VERSION='5.2.1';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const letters=['A','B','C','D','E'];
 const currentYear=new Date().getFullYear();
@@ -206,6 +206,28 @@ function drawTimingSignature(ctx,w,h,mark,exam,copies){
   ctx.fillStyle='#000';pattern.forEach((factor,i)=>ctx.fillRect(x,y0+i*step,mark*factor,barH));
 }
 function drawFieldBox(ctx,label,x,y,width,height,fontSize,lineWidth){ctx.fillStyle='#000';ctx.font=`700 ${fontSize}px Arial`;ctx.textAlign='left';ctx.fillText(label,x,y-fontSize*.38);ctx.strokeStyle='#000';ctx.lineWidth=lineWidth;ctx.strokeRect(x,y,width,height)}
+function drawExamEdgeLabel(ctx,e,w,h,copies,g,mark,moat,rightX,topY,midY){
+  const raw=String(e?.name||'Evaluación').trim()||'Evaluación';
+  const suffix=e?.version?` · ${e.version}`:'';
+  let label=raw+suffix;
+  const safeTop=topY+mark+moat*1.55,safeBottom=midY-moat*1.55;
+  const available=Math.max(0,safeBottom-safeTop);
+  if(available<20)return;
+  ctx.save();
+  let font=Math.max(8,physicalPx(copies>=3?2.2:2.55,copies,w));
+  ctx.font=`700 ${font}px Arial`;
+  const maxText=available*.88;
+  while(font>6&&ctx.measureText(label).width>maxText){font-=.5;ctx.font=`700 ${font}px Arial`}
+  if(ctx.measureText(label).width>maxText){
+    while(label.length>6&&ctx.measureText(label+'…').width>maxText)label=label.slice(0,-1);
+    label+='…';
+  }
+  const x=rightX+mark*.50,y=(safeTop+safeBottom)/2;
+  ctx.translate(x,y);ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='rgb(35,35,35)';
+  ctx.fillText(label,0,0);
+  ctx.restore();
+}
 function physicalPx(mm,copies,w){const ref=pageLayoutMetrics(copies,LETTER_SHORT_PX);return mm*PX_PER_MM*(w/ref.cellW)}
 function responseBubbleMetrics(copies,questions,cols,rowH,colW,w,options){
   copies=Math.max(1,Math.min(4,+copies||1));
@@ -223,9 +245,8 @@ function drawResponseSheet(ctx,e,x,y,w,h,copies=1){
   [[leftX,topY],[rightX,topY],[leftX,midY],[rightX,midY],[leftX,bottomY],[rightX,bottomY]].forEach(([mx,my])=>drawSquareMarker(ctx,mx,my,mark,moat));
   drawTimingSignature(ctx,w,h,mark,e,copies);
   const left=w*g.safeLeft,right=w*g.safeRight,usable=right-left;
+  drawExamEdgeLabel(ctx,e,w,h,copies,g,mark,moat,rightX,topY,midY);
   ctx.fillStyle=dark;ctx.textAlign='left';
-  const micro=Math.max(10,physicalPx(copies>=3?2.7:3.0,copies,w));ctx.font=`700 ${micro}px Arial`;ctx.fillText(`EvalúaCam · ${e.name||'Hoja de respuestas'} · ${e.version||'A'} · ${e.questions} preguntas`,left,h*g.titleY);
-  ctx.textAlign='right';ctx.font=`700 ${Math.max(9,physicalPx(copies>=3?2.3:2.5,copies,w))}px Arial`;ctx.fillText(`EV-${e.code||'0000'} · ${examIdentity(e)}`,right,h*g.titleY);ctx.textAlign='left';
   const fy=h*g.fieldTop,boxH=h*g.fieldHeight,labelFont=Math.max(11,physicalPx(copies>=3?3.0:3.4,copies,w)),lineW=Math.max(1.4,physicalPx(.38,copies,w));
   const gap=usable*.045;
   if(e.studentIdMode==='both'){
@@ -248,7 +269,7 @@ function drawResponseSheet(ctx,e,x,y,w,h,copies=1){
       ctx.fillStyle='rgb(80,80,80)';ctx.font=`500 ${Math.max(8,r*.94*(v.text/140))}px Arial`;ctx.textAlign='center';ctx.fillText(letters[o],cx,cy+r*.34);
     }
   }
-  ctx.fillStyle='rgb(70,70,70)';ctx.textAlign='center';ctx.font=`600 ${Math.max(7,physicalPx(copies>=3?1.9:2.15,copies,w))}px Arial`;ctx.fillText(`EvalúaCam OMR Pro · No cubra los cuadrados ni las barras · ${examIdentity(e)}`,w/2,h*g.footerY);
+  ctx.fillStyle='rgb(70,70,70)';ctx.textAlign='center';ctx.font=`600 ${Math.max(7,physicalPx(copies>=3?1.9:2.15,copies,w))}px Arial`;ctx.fillText('EvalúaCam · No cubra los cuadrados ni las barras',w/2,h*g.footerY);
   ctx.restore();
 }
 $('#downloadSheetImageBtn').onclick=()=>{
