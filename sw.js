@@ -1,5 +1,5 @@
-const CACHE = 'evaluacam-v5-2-0';
-const ASSETS = ['./', './index.html', './styles.css?v=5.2.0', './app.js?v=5.2.0', './cloud-sync.js?v=5.2.0', './result-images.js?v=5.2.0', './auth.js?v=5.2.0', './google-config.js?v=5.2.0', './manifest.json', './icon.svg'];
+const CACHE = 'evaluacam-v5-2-1';
+const ASSETS = ['./', './index.html', './styles.css?v=5.2.1', './app.js?v=5.2.1', './cloud-sync.js?v=5.2.1', './result-images.js?v=5.2.1', './auth.js?v=5.2.1', './google-config.js?v=5.2.1', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
