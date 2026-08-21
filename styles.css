@@ -76,7 +76,7 @@ input,select,button{min-height:44px}
 /* Impresion multipagina y exportacion PNG v1.3 */
 .sheet-actions{display:flex;align-items:end;gap:10px;flex-wrap:wrap;justify-content:flex-end}.compact-label{font-size:12px;font-weight:800;color:var(--muted);min-width:145px}.compact-label select{display:block;margin-top:5px}.print-pages{display:none}.print-page{box-sizing:border-box;width:210mm;height:297mm;padding:10mm;background:#fff;display:grid;gap:6mm;overflow:hidden}.print-page.copies-1{grid-template-columns:1fr;grid-template-rows:1fr}.print-page.copies-2{grid-template-columns:1fr;grid-template-rows:repeat(2,minmax(0,1fr))}.print-page.copies-4{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr))}.print-slot{min-width:0;min-height:0;overflow:hidden;display:flex;align-items:flex-start;justify-content:center}.print-slot .sheet-paper{margin:0;box-shadow:none;transform-origin:top center;flex:none}.print-page.copies-1 .print-slot .sheet-paper{transform:scale(.84)}.print-page.copies-2 .print-slot .sheet-paper{transform:scale(.445)}.print-page.copies-4 .print-slot .sheet-paper{transform:scale(.40)}
 @media(max-width:620px){.sheet-actions{display:grid;grid-template-columns:1fr;width:100%}.sheet-actions>*{width:100%}.compact-label{width:100%}}
-@page{size:A4 portrait;margin:0}
+@page{size:Letter portrait;margin:0}
 @media print{
   body.printing-sheets #sheet>#printArea{display:none!important}
   body.printing-sheets #sheet .print-pages{display:block!important}
@@ -112,7 +112,7 @@ input,select,button{min-height:44px}
 .print-page.copies-4{padding:8mm;gap:4mm}
 .print-page.copies-4 .print-slot .sheet-paper{transform:scale(.405)}
 @media print{
-  @page{size:A4 portrait;margin:0}
+  @page{size:Letter portrait;margin:0}
   body.printing-sheets .print-page{width:210mm!important;height:297mm!important;padding:8mm!important}
   body.printing-sheets .print-page.copies-4{gap:4mm!important}
   body.printing-sheets .print-slot{overflow:visible!important}
@@ -140,8 +140,8 @@ input,select,button{min-height:44px}
 .canonical-print-image{display:block;width:100%;height:100%;object-fit:contain;background:#fff}
 .print-page.canonical-page{display:block!important;padding:0!important;gap:0!important;background:#fff!important;overflow:hidden!important}
 @media print{
- body.printing-sheets .print-page.canonical-page{width:210mm!important;height:297mm!important;margin:0!important;padding:0!important}
- body.printing-sheets .canonical-print-image{width:210mm!important;height:297mm!important;object-fit:contain!important}
+ body.printing-sheets .print-page.canonical-page{width:var(--sheet-page-w,215.9mm)!important;height:var(--sheet-page-h,279.4mm)!important;margin:0!important;padding:0!important}
+ body.printing-sheets .canonical-print-image{width:100%!important;height:100%!important;object-fit:contain!important}
 }
 
 /* Estados de encuadre automático OMR */
