@@ -1,4 +1,4 @@
-const APP_VERSION='5.2.1';
+const APP_VERSION='5.2.2';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const letters=['A','B','C','D','E'];
 const currentYear=new Date().getFullYear();
@@ -703,7 +703,11 @@ function feedbackOverlayHtml(result,exam){
 function buildFeedbackSheet(result){
   const exam=state.exams.find(x=>x.id===result.examId);
   const src=feedbackCaptureSource(result);
-  const item=document.createElement('article');item.className='feedback-sheet';item.innerHTML=`<div class="feedback-stage"><img class="feedback-base-image" src="${esc(src)}" alt="Hoja corregida de ${esc(result.student)}"><div class="feedback-overlay">${feedbackOverlayHtml(result,exam)}</div></div>`;
+  const copies=Math.max(1,Math.min(4,+(result?.templateCopies||1)));
+  const item=document.createElement('article');
+  item.className='feedback-sheet';
+  item.dataset.templateCopies=String(copies);
+  item.innerHTML=`<div class="feedback-stage" style="--feedback-aspect:${responseSheetAspectForCopies(copies)};"><img class="feedback-base-image" src="${esc(src)}" alt="Hoja corregida de ${esc(result.student)}"><div class="feedback-overlay">${feedbackOverlayHtml(result,exam)}</div></div>`;
   return item;
 }
 function feedbackGroups(results,perPage){const out=[];for(let i=0;i<results.length;i+=perPage)out.push(results.slice(i,i+perPage));return out}
@@ -713,7 +717,7 @@ function buildFeedbackPrintPages(results,perPage){
 }
 function setFeedbackPageStyle(perPage){
   let style=$('#feedbackPageStyle');if(!style){style=document.createElement('style');style.id='feedbackPageStyle';document.head.appendChild(style)}
-  style.textContent=perPage===2?'@page { size: A4 landscape; margin: 0; }':'@page { size: A4 portrait; margin: 0; }';
+  style.textContent=perPage===2?'@page { size: Letter landscape; margin: 0; }':'@page { size: Letter portrait; margin: 0; }';
 }
 function clearFeedbackPageStyle(){const style=$('#feedbackPageStyle');if(style)style.remove()}
 function waitForPrintImages(host){const images=[...(host?.querySelectorAll('img')||[])];if(!images.length)return Promise.resolve();return Promise.all(images.map(img=>img.complete?Promise.resolve():new Promise(res=>{img.addEventListener('load',res,{once:true});img.addEventListener('error',res,{once:true})}))).then(()=>new Promise(res=>setTimeout(res,80)))}
