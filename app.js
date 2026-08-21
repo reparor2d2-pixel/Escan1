@@ -1,4 +1,4 @@
-const APP_VERSION='5.1.0';
+const APP_VERSION='5.2.0';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const letters=['A','B','C','D','E'];
 const currentYear=new Date().getFullYear();
@@ -47,11 +47,11 @@ function migrateData(){
   });
   state.results.forEach(r=>{const e=state.exams.find(x=>x.id===r.examId);if(e&&!r.courseId){r.courseId=e.courseId;changed=true}});
   const print=state.settings.print||(state.settings.print={});
-  if(loadedPrintLayoutVersion<12){
+  if(loadedPrintLayoutVersion<13){
     const minimums={text:140,title:150,instructions:165,headers:175,numbers:175,bubble:120,stroke:145,black:130,contrast:135,sharp:130,marker:145};
     Object.entries(minimums).forEach(([key,value])=>{if(!Number.isFinite(+print[key])||+print[key]<value){print[key]=value;changed=true}});
     if(![1,2,3].includes(+print.copies))print.copies=3;
-    print.layoutVersion=12;changed=true;
+    print.layoutVersion=13;changed=true;
   }
   if(![1,2].includes(+print.feedbackLayout||0)){print.feedbackLayout=2;changed=true}
   if(changed)save();
@@ -109,11 +109,11 @@ function renderSheet(){
 $('#sheetExamSelect').onchange=renderSheet;
 function selectedSheetExam(){const id=$('#sheetExamSelect').value;return state.exams.find(x=>x.id===id)||state.exams[0]}
 const printProfiles={
-  auto:{black:120,contrast:125,sharp:120,stroke:135,size:115,marker:140},
-  laser:{black:110,contrast:115,sharp:115,stroke:125,size:112,marker:130},
-  ink:{black:125,contrast:130,sharp:125,stroke:140,size:116,marker:145},
-  copy:{black:135,contrast:145,sharp:135,stroke:150,size:120,marker:155},
-  max:{black:135,contrast:145,sharp:150,stroke:160,size:122,marker:160}
+  auto:{black:125,contrast:130,sharp:125,stroke:145,size:124,marker:145},
+  laser:{black:118,contrast:122,sharp:120,stroke:138,size:122,marker:140},
+  ink:{black:128,contrast:134,sharp:128,stroke:148,size:124,marker:148},
+  copy:{black:135,contrast:145,sharp:135,stroke:155,size:126,marker:155},
+  max:{black:138,contrast:148,sharp:150,stroke:160,size:128,marker:160}
 };
 function optimizerValues(){return {black:+$('#blackLevel').value,contrast:+$('#contrast').value,sharp:+$('#sharpness').value,stroke:+$('#bubbleStroke').value,size:+$('#bubbleSize').value,marker:+$('#markerDarkness').value,text:+(state.settings.print?.text||140),title:+(state.settings.print?.title||150),instructions:+(state.settings.print?.instructions||165),headers:+(state.settings.print?.headers||175),numbers:+(state.settings.print?.numbers||175)}}
 function applyProfile(name){const p=printProfiles[name]||printProfiles.auto;$('#blackLevel').value=p.black;$('#contrast').value=p.contrast;$('#sharpness').value=p.sharp;$('#bubbleStroke').value=p.stroke;$('#bubbleSize').value=p.size;$('#markerDarkness').value=p.marker;updateOptimizer()}
@@ -126,124 +126,136 @@ function getConfiguredRenderExam(baseExam, overrides={}){
   if(overrides.version)e.version=overrides.version;
   return e;
 }
-function answerGridForQuestions(total){
-  if(total<=10)return {cols:1,rows:total};
-  if(total<=24)return {cols:2,rows:Math.ceil(total/2)};
-  if(total<=60)return {cols:3,rows:Math.ceil(total/3)};
-  return {cols:4,rows:Math.ceil(total/4)};
+function answerGridForQuestions(total,copies=1){
+  const n=Math.max(1,+total||1),c=Math.max(1,+copies||1);
+  let cols;
+  if(c>=3){cols=n<=20?2:n<=36?3:4}
+  else if(c===2){cols=n<=20?2:n<=45?3:4}
+  else{cols=n<=12?1:n<=40?2:n<=60?3:4}
+  cols=Math.min(cols,n);
+  return {cols,rows:Math.ceil(n/cols)};
 }
-const SHEET_GEOMETRY={
-  markerX:.040,markerTop:.042,markerMid:.500,markerBottom:.936,marker:.046,markerMoat:.012,
-  safeLeft:.110,safeRight:.890,titleY:.049,metaY:.073,fieldTop:.114,fieldSecond:.184,fieldHeight:.050,
-  instructionY:.246,answerTop:.284,answerBottom:.918,footerY:.946,
-  timingX:.048,timingTop:.640,timingStep:.0235
-};
+const LETTER_SHORT_PX=2550;
+const LETTER_LONG_PX=3300;
+const PX_PER_MM=300/25.4;
+function pageGridForCopies(copies){
+  copies=+copies||1;
+  if(copies===2)return {cols:2,rows:1,landscape:true};
+  if(copies===3||copies===4)return {cols:2,rows:2,landscape:false};
+  return {cols:1,rows:1,landscape:false};
+}
+function pageLayoutMetrics(copies,shortSide=LETTER_SHORT_PX){
+  copies=+copies||1;const scale=shortSide/LETTER_SHORT_PX,grid=pageGridForCopies(copies),width=grid.landscape?Math.round(LETTER_LONG_PX*scale):shortSide,height=grid.landscape?shortSide:Math.round(LETTER_LONG_PX*scale);
+  let mx,my,gx,gy;
+  if(copies===1){mx=94*scale;my=96*scale;gx=gy=0}
+  else if(copies===2){mx=92*scale;my=104*scale;gx=72*scale;gy=0}
+  else{mx=82*scale;my=82*scale;gx=62*scale;gy=62*scale}
+  const cellW=(width-mx*2-gx*(grid.cols-1))/grid.cols,cellH=(height-my*2-gy*(grid.rows-1))/grid.rows;
+  return {width,height,grid,mx,my,gx,gy,cellW,cellH,aspect:cellW/cellH};
+}
+function responseSheetAspectForCopies(copies){return pageLayoutMetrics(+copies||1,LETTER_SHORT_PX).aspect}
+function sheetGeometryForCopies(copies=1){
+  copies=Math.max(1,Math.min(4,+copies||1));
+  const ref=pageLayoutMetrics(copies,LETTER_SHORT_PX),xmm=mm=>mm*PX_PER_MM/ref.cellW,ymm=mm=>mm*PX_PER_MM/ref.cellH,compact=copies>=3;
+  const markerMm=copies===1?8.2:copies===2?7.8:7.0;
+  const safeLeftMm=compact?14.5:16.5,safeRightMm=compact?8.5:10.5;
+  return {
+    markerX:xmm(3.6),markerTop:ymm(3.6),markerMid:.515,markerBottom:1-ymm(3.6),marker:xmm(markerMm),markerMoat:xmm(2.0),
+    safeLeft:xmm(safeLeftMm),safeRight:1-xmm(safeRightMm),titleY:ymm(compact?9.0:10.0),fieldTop:ymm(compact?18.5:21.0),fieldHeight:ymm(compact?10.5:12.5),
+    instructionY:ymm(compact?34.5:40.5),answerTop:ymm(compact?42.5:49.0),answerBottom:1-ymm(compact?13.0:16.0),footerY:1-ymm(6.8),
+    timingX:xmm(3.8),timingTop:compact?.555:.575,timingStep:ymm(compact?4.45:5.35),timingBarH:ymm(compact?1.85:2.05),
+    refCellW:ref.cellW,refCellH:ref.cellH,compact
+  };
+}
 function hash32(text){let h=2166136261>>>0;for(const ch of String(text||'')){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)>>>0}return h>>>0}
 function examIdentity(exam){const seed=hash32(`${exam?.id||''}|${exam?.code||''}|${exam?.courseId||''}|${exam?.version||'A'}|${exam?.questions||0}`);return seed.toString(36).toUpperCase().padStart(7,'0').slice(-7)}
 function timingPatternForExam(exam){let n=hash32(examIdentity(exam)),out=[];for(let i=0;i<10;i++){n=(Math.imul(n,1664525)+1013904223)>>>0;out.push(.38+((n>>>24)&255)/255*.58)}return out}
 function activeScanExam(){const id=$('#scanExamSelect')?.value;return state.exams.find(x=>x.id===id)||state.exams[0]||null}
 function activeTimingPattern(){return timingPatternForExam(activeScanExam())}
-function pageGridForCopies(copies){
-  return copies===4?{cols:2,rows:2,landscape:false}:copies===3?{cols:3,rows:1,landscape:true}:copies===2?{cols:1,rows:2,landscape:false}:{cols:1,rows:1,landscape:false};
-}
-function pageLayoutMetrics(copies,shortSide=2480){
-  const grid=pageGridForCopies(copies),unit=shortSide/2480,longSide=Math.round(shortSide*3508/2480),width=grid.landscape?longSide:shortSide,height=grid.landscape?shortSide:longSide;
-  let mx,my,gx,gy;
-  if(copies===3){mx=64*unit;my=74*unit;gx=24*unit;gy=0}else if(copies===2){mx=82*unit;my=102*unit;gx=0;gy=38*unit}else if(copies===4){mx=72*unit;my=105*unit;gx=42*unit;gy=42*unit}else{mx=82*unit;my=110*unit;gx=0;gy=0}
-  const cellW=(width-mx*2-gx*(grid.cols-1))/grid.cols,cellH=(height-my*2-gy*(grid.rows-1))/grid.rows;
-  return {width,height,grid,mx,my,gx,gy,cellW,cellH,aspect:cellW/cellH};
-}
-function responseSheetAspectForCopies(copies){return pageLayoutMetrics(+copies||3,2480).aspect}
-function createA4SheetCanvas(exam,copies,width=1240){
+function createLetterSheetCanvas(exam,copies,width=1275){
   const m=pageLayoutMetrics(copies,width),canvas=document.createElement('canvas');canvas.width=m.width;canvas.height=m.height;
   const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
-  for(let i=0;i<copies;i++){const col=i%m.grid.cols,row=Math.floor(i/m.grid.cols);drawResponseSheet(ctx,exam,m.mx+col*(m.cellW+m.gx),m.my+row*(m.cellH+m.gy),m.cellW,m.cellH,copies)}
+  const slots=[];
+  if(copies===3){slots.push([0,0],[1,0],[.5,1])}
+  else for(let i=0;i<copies;i++)slots.push([i%m.grid.cols,Math.floor(i/m.grid.cols)]);
+  slots.forEach(([col,row])=>{const sx=copies===3&&col===.5?(m.width-m.cellW)/2:m.mx+col*(m.cellW+m.gx),sy=m.my+row*(m.cellH+m.gy);drawResponseSheet(ctx,exam,sx,sy,m.cellW,m.cellH,copies)});
   return canvas;
 }
 function renderSheetPagePreview(){
   const host=$('#sheetCanvasPreview');if(!host)return;const exam=selectedSheetExam();if(!exam){host.innerHTML='';return}
-  const copies=+$('#copiesPerPage').value||1,canvas=createA4SheetCanvas(getConfiguredRenderExam(exam),copies,1240);canvas.className='sheet-page-preview-canvas';canvas.setAttribute('aria-label',`Vista previa exacta de ${copies} hoja${copies===1?'':'s'} por página A4`);host.innerHTML='';host.appendChild(canvas);
-  const layout=answerGridForQuestions(exam.questions),notice=$('#sheetLayoutNotice');if(notice){const legacy=copies===4;notice.className='sheet-layout-notice '+(legacy?'is-warning':'is-ok');notice.textContent=legacy?`Modo heredado 2×2: ${layout.cols} columna(s) de respuestas. Para reducir errores, ahora se recomienda usar 3 por página en horizontal.`:`Diseño OMR v13 optimizado ${copies===3?'3 por página en horizontal':copies===2?'2 por página':'1 por página'}: ${layout.cols} columna(s) de respuestas, círculos más grandes y marcadores reducidos.`}
+  const copies=+$('#copiesPerPage').value||1,canvas=createLetterSheetCanvas(getConfiguredRenderExam(exam),copies,1275);canvas.className='sheet-page-preview-canvas';canvas.setAttribute('aria-label',`Vista previa exacta de ${copies} hoja${copies===1?'':'s'} por página Carta`);host.innerHTML='';host.appendChild(canvas);
+  const layout=answerGridForQuestions(exam.questions,copies),notice=$('#sheetLayoutNotice');if(notice){notice.className='sheet-layout-notice is-ok';const safety=copies===4&&exam.questions>20?' · Formato económico: se recomienda hasta 20 preguntas.':'';notice.textContent=`EvalúaCam OMR Pro · ${copies} por hoja Carta · ${layout.cols} columna(s) × ${layout.rows} fila(s). Círculos y encabezado preservan tamaño físico para mejorar la lectura por cámara${safety}.`}
 }
+function setSheetPageStyle(copies){
+  let style=$('#sheetPageStyle');if(!style){style=document.createElement('style');style.id='sheetPageStyle';document.head.appendChild(style)}
+  const landscape=+copies===2;style.textContent=`@page { size: Letter ${landscape?'landscape':'portrait'}; margin: 0; }`;
+  document.body.style.setProperty('--sheet-page-w',landscape?'279.4mm':'215.9mm');document.body.style.setProperty('--sheet-page-h',landscape?'215.9mm':'279.4mm');
+}
+function clearSheetPageStyle(){const style=$('#sheetPageStyle');if(style)style.remove()}
 function preparePrintPages(){
   const copies=+$('#copiesPerPage').value||1,exam=getConfiguredRenderExam(selectedSheetExam()),pages=$('#printPages');pages.innerHTML='';
-  if(copies===4&&exam?.questions>20)toast('Modo heredado: para máxima legibilidad en 4 por hoja se recomiendan hasta 20 preguntas.');
-  const canvas=createA4SheetCanvas(exam,copies,2480),img=document.createElement('img');img.className='canonical-print-image';img.alt='Hoja de respuestas lista para imprimir';img.src=canvas.toDataURL('image/png');
-  const page=document.createElement('div');page.className='print-page canonical-page';page.appendChild(img);pages.appendChild(page);
+  if(copies===4&&exam?.questions>20)toast('Para 4 hojas por página y máxima precisión se recomiendan hasta 20 preguntas.');
+  const canvas=createLetterSheetCanvas(exam,copies,2550),img=document.createElement('img');img.className='canonical-print-image';img.alt='Hoja de respuestas EvalúaCam OMR Pro lista para imprimir';img.src=canvas.toDataURL('image/png');
+  const page=document.createElement('div');page.className='print-page canonical-page';page.appendChild(img);pages.appendChild(page);setSheetPageStyle(copies);
 }
-$('#printSheetBtn').onclick=()=>{if(!selectedSheetExam())return toast('Primero seleccione una evaluación.');preparePrintPages();document.body.classList.add('printing-sheets');requestAnimationFrame(()=>window.print())};window.addEventListener('afterprint',()=>{document.body.classList.remove('printing-sheets');document.body.classList.remove('printing-feedback');$('#feedbackPrintPages')?.replaceChildren();clearFeedbackPageStyle?.()});
+$('#printSheetBtn').onclick=()=>{if(!selectedSheetExam())return toast('Primero seleccione una evaluación.');preparePrintPages();document.body.classList.add('printing-sheets');requestAnimationFrame(()=>window.print())};window.addEventListener('afterprint',()=>{document.body.classList.remove('printing-sheets');document.body.classList.remove('printing-feedback');$('#feedbackPrintPages')?.replaceChildren();clearFeedbackPageStyle?.();clearSheetPageStyle?.()});
 function wrapText(ctx,text,x,y,maxWidth,lineHeight,maxLines=2){const words=String(text).split(/\s+/);let line='',lines=[];for(const word of words){const test=line?line+' '+word:word;if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=word}else line=test}if(line)lines.push(line);lines=lines.slice(0,maxLines);lines.forEach((ln,i)=>ctx.fillText(ln,x,y+i*lineHeight));}
 function drawSquareMarker(ctx,mx,my,size,moat){ctx.fillStyle='#fff';ctx.fillRect(mx-moat,my-moat,size+moat*2,size+moat*2);ctx.fillStyle='#000';ctx.fillRect(mx,my,size,size)}
-function drawTimingSignature(ctx,w,h,mark,exam){
-  const pattern=timingPatternForExam(exam),x=w*SHEET_GEOMETRY.timingX,y0=h*SHEET_GEOMETRY.timingTop,step=h*SHEET_GEOMETRY.timingStep*.82,barH=Math.max(3,h*.010);
+function drawTimingSignature(ctx,w,h,mark,exam,copies){
+  const g=sheetGeometryForCopies(copies),pattern=timingPatternForExam(exam),x=w*g.timingX,y0=h*g.timingTop,step=h*g.timingStep,barH=Math.max(2,h*g.timingBarH);
   ctx.fillStyle='#000';pattern.forEach((factor,i)=>ctx.fillRect(x,y0+i*step,mark*factor,barH));
 }
-function drawFieldBox(ctx,label,x,y,width,height,fontSize,lineWidth){ctx.fillStyle='#000';ctx.font=`800 ${fontSize}px Arial`;ctx.textAlign='left';ctx.fillText(label,x,y-fontSize*.32);ctx.strokeStyle='#000';ctx.lineWidth=lineWidth;ctx.strokeRect(x,y,width,height)}
+function drawFieldBox(ctx,label,x,y,width,height,fontSize,lineWidth){ctx.fillStyle='#000';ctx.font=`700 ${fontSize}px Arial`;ctx.textAlign='left';ctx.fillText(label,x,y-fontSize*.38);ctx.strokeStyle='#000';ctx.lineWidth=lineWidth;ctx.strokeRect(x,y,width,height)}
+function physicalPx(mm,copies,w){const ref=pageLayoutMetrics(copies,LETTER_SHORT_PX);return mm*PX_PER_MM*(w/ref.cellW)}
 function responseBubbleMetrics(copies,questions,cols,rowH,colW,w,options){
-  const triple=copies===3,legacy=copies===4,single=cols===1,double=copies===2,dense=triple&&questions>=36,veryDense=triple&&questions>=51;
-  const pack=options<=4?.88:options===5?.94:1;
-  const grow=options<=4?1.08:options===5?1.02:1;
-  const numberOffset=triple?(veryDense?.076:dense?.079:.083):legacy?.098:(single?.103:.100);
-  const optionStartRatio=triple?(veryDense?.100:dense?.104:.109):legacy?.166:(single?.154:.148);
-  const bandRatio=triple?(veryDense?.338:dense?.348:.362):legacy?.430:(single?.410:.398);
-  const bandCap=w*(triple?(veryDense?.108:dense?.112:.118):legacy?.126:(double?.162:.174));
-  const optionBand=Math.min(colW*bandRatio*pack,bandCap*pack);
-  const optionGap=options>1?optionBand/(options-1):0;
-  const radius=Math.max(8,Math.min(
-    rowH*(triple?(veryDense?.432:dense?.420:.408):legacy?.370:.352)*grow,
-    colW*(triple?(veryDense?.098:dense?.096:.094):legacy?.082:.075)*grow,
-    w*(triple?(veryDense?.0360:dense?.0353:.0344):legacy?.0305:.0298)*grow
-  ));
-  return {numberOffset,optionStartRatio,optionBand,optionGap,radius};
+  copies=Math.max(1,Math.min(4,+copies||1));
+  const diameterMm=copies===1?7.0:copies===2?6.6:copies===3?5.9:5.7,gapMm=copies===1?2.0:copies===2?1.8:1.45;
+  const desiredR=physicalPx(diameterMm/2,copies,w),edgeGap=physicalPx(gapMm,copies,w),optionStart=Math.min(colW*.34,physicalPx(copies>=3?14.0:18.0,copies,w));
+  const maxR=Math.min(rowH*.37,(colW-optionStart)/(options*2.10)),radius=Math.max(5,Math.min(desiredR,maxR));
+  const desiredGap=radius*2+edgeGap,maxGap=options>1?(colW-optionStart-radius*1.15)/(options-1):0,actualGap=options>1?Math.max(radius*2+physicalPx(.8,copies,w),Math.min(desiredGap,maxGap)):0;
+  const numberX=Math.max(physicalPx(5.0,copies,w),optionStart-physicalPx(copies>=3?4.2:5.2,copies,w));
+  return {numberOffset:numberX/colW,optionStartRatio:optionStart/colW,optionBand:actualGap*(options-1),optionGap:actualGap,radius};
 }
 function drawResponseSheet(ctx,e,x,y,w,h,copies=1){
-  const v=optimizerValues(),single=copies===1,double=copies===2,triple=copies===3,legacy=copies===4,ink=Math.max(0,Math.min(18,Math.round((140-v.black)*.28))),dark=`rgb(${ink},${ink},${ink})`;
+  const v=optimizerValues(),g=sheetGeometryForCopies(copies),ink=Math.max(0,Math.min(16,Math.round((140-v.black)*.24))),dark=`rgb(${ink},${ink},${ink})`,scale=w/g.refCellW;
   ctx.save();ctx.translate(x,y);ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
-  ctx.strokeStyle='rgb(190,190,190)';ctx.lineWidth=Math.max(1,w*.0010);ctx.strokeRect(w*.004,h*.004,w*.992,h*.992);
-  const mark=w*SHEET_GEOMETRY.marker,moat=w*SHEET_GEOMETRY.markerMoat,leftX=w*SHEET_GEOMETRY.markerX,rightX=w*(1-SHEET_GEOMETRY.markerX)-mark;
-  const topY=h*SHEET_GEOMETRY.markerTop,midY=h*SHEET_GEOMETRY.markerMid-mark/2,bottomY=h*SHEET_GEOMETRY.markerBottom-mark;
+  const mark=w*g.marker,moat=w*g.markerMoat,leftX=w*g.markerX,rightX=w*(1-g.markerX)-mark,topY=h*g.markerTop,midY=h*g.markerMid-mark/2,bottomY=h*g.markerBottom-mark;
   [[leftX,topY],[rightX,topY],[leftX,midY],[rightX,midY],[leftX,bottomY],[rightX,bottomY]].forEach(([mx,my])=>drawSquareMarker(ctx,mx,my,mark,moat));
-  drawTimingSignature(ctx,w,h,mark,e);
-  const left=w*SHEET_GEOMETRY.safeLeft,right=w*SHEET_GEOMETRY.safeRight,usable=right-left;
+  drawTimingSignature(ctx,w,h,mark,e,copies);
+  const left=w*g.safeLeft,right=w*g.safeRight,usable=right-left;
   ctx.fillStyle=dark;ctx.textAlign='left';
-
-  const titleBase=single?.0235:double?.025:triple?.024:.0275,titleSize=Math.max(20,w*titleBase*(v.title/150));ctx.font=`800 ${titleSize}px Arial`;
-  wrapText(ctx,e.name||'Hoja de respuestas',left,h*SHEET_GEOMETRY.titleY,usable*.69,titleSize*1.02,1);
-  ctx.textAlign='right';ctx.font=`800 ${Math.max(12,w*(legacy?.017:triple?.0146:double?.0152:.0138)*(v.headers/175))}px Arial`;ctx.fillText(`EV-${e.code||'0000'} · ${examIdentity(e)}`,right,h*SHEET_GEOMETRY.titleY);ctx.textAlign='left';
-  const meta=[courseName(e.courseId),`Versión ${e.version||'A'}`,`${e.questions} preguntas`].filter(Boolean).join(' · ');
-  ctx.font=`700 ${Math.max(12,w*(legacy?.0165:triple?.014:double?.0145:.0135)*(v.headers/175))}px Arial`;wrapText(ctx,meta,left,h*SHEET_GEOMETRY.metaY,usable*.96,w*.020,1);
-
-  const boxH=h*SHEET_GEOMETRY.fieldHeight,labelFont=Math.max(14,w*(legacy?.027:triple?.0225:double?.0215:.0205)*(v.headers/175)),lineW=Math.max(1.8,w*.00205*v.stroke/145),fy=h*SHEET_GEOMETRY.fieldTop,fy2=h*SHEET_GEOMETRY.fieldSecond;
+  const micro=Math.max(10,physicalPx(copies>=3?2.7:3.0,copies,w));ctx.font=`700 ${micro}px Arial`;ctx.fillText(`EvalúaCam · ${e.name||'Hoja de respuestas'} · ${e.version||'A'} · ${e.questions} preguntas`,left,h*g.titleY);
+  ctx.textAlign='right';ctx.font=`700 ${Math.max(9,physicalPx(copies>=3?2.3:2.5,copies,w))}px Arial`;ctx.fillText(`EV-${e.code||'0000'} · ${examIdentity(e)}`,right,h*g.titleY);ctx.textAlign='left';
+  const fy=h*g.fieldTop,boxH=h*g.fieldHeight,labelFont=Math.max(11,physicalPx(copies>=3?3.0:3.4,copies,w)),lineW=Math.max(1.4,physicalPx(.38,copies,w));
+  const gap=usable*.045;
   if(e.studentIdMode==='both'){
-    drawFieldBox(ctx,'Nombre',left,fy,usable,boxH,labelFont,lineW);
-    drawFieldBox(ctx,'Código',left,fy2,usable*.55,boxH,labelFont*.92,lineW);drawFieldBox(ctx,'Curso',left+usable*.59,fy2,usable*.41,boxH,labelFont*.92,lineW);
+    const nw=usable*.52,cw=usable*.18;drawFieldBox(ctx,'Nombre',left,fy,nw,boxH,labelFont,lineW);drawFieldBox(ctx,'Código',left+nw+gap,fy,cw,boxH,labelFont*.92,lineW);drawFieldBox(ctx,'Curso',left+nw+gap+cw+gap,fy,usable-nw-cw-gap*2,boxH,labelFont*.92,lineW);
   }else if(e.studentIdMode==='code'){
-    drawFieldBox(ctx,'Código del estudiante',left,fy,usable,boxH,labelFont*.88,lineW);drawFieldBox(ctx,'Curso',left,fy2,usable*.78,boxH,labelFont,lineW);
+    const codeW=usable*.64;drawFieldBox(ctx,'Código del estudiante',left,fy,codeW,boxH,labelFont*.92,lineW);drawFieldBox(ctx,'Curso',left+codeW+gap,fy,usable-codeW-gap,boxH,labelFont,lineW);
   }else{
-    drawFieldBox(ctx,'Nombre',left,fy,usable,boxH,labelFont,lineW);drawFieldBox(ctx,'Curso',left,fy2,usable*.78,boxH,labelFont,lineW);
+    const nameW=usable*.64;drawFieldBox(ctx,'Nombre del estudiante',left,fy,nameW,boxH,labelFont,lineW);drawFieldBox(ctx,'Curso / Grupo',left+nameW+gap,fy,usable-nameW-gap,boxH,labelFont,lineW);
   }
-
-  ctx.fillStyle=dark;ctx.font=`800 ${Math.max(12,w*(legacy?.0195:triple?.0158:double?.0165:.0152)*(v.instructions/165))}px Arial`;
-  wrapText(ctx,'Marque una sola alternativa y rellene completamente el círculo.',left,h*SHEET_GEOMETRY.instructionY,usable,w*(triple?.018:double?.019:.021),2);
-
-  const grid=answerGridForQuestions(e.questions),cols=grid.cols,rows=grid.rows,top=h*SHEET_GEOMETRY.answerTop,bottom=h*SHEET_GEOMETRY.answerBottom,colW=usable/cols,rowH=(bottom-top)/rows;
+  ctx.strokeStyle='rgb(125,125,125)';ctx.lineWidth=Math.max(1,physicalPx(.18,copies,w));ctx.beginPath();ctx.moveTo(left,fy+boxH+physicalPx(4.0,copies,w));ctx.lineTo(right,fy+boxH+physicalPx(4.0,copies,w));ctx.stroke();
+  ctx.fillStyle=dark;ctx.textAlign='center';ctx.font=`600 ${Math.max(9,physicalPx(copies>=3?2.45:2.8,copies,w))}px Arial`;ctx.fillText('Marque solo una alternativa por pregunta. Rellene completamente el círculo.',(left+right)/2,h*g.instructionY);
+  const grid=answerGridForQuestions(e.questions,copies),cols=grid.cols,rows=grid.rows,top=h*g.answerTop,bottom=h*g.answerBottom,colW=usable/cols,availableH=bottom-top,targetPitch=physicalPx(copies===1?14.0:copies===2?11.0:7.4,copies,w),rowH=Math.min(availableH/rows,targetPitch),blockH=rowH*rows,startY=top+Math.max(0,(availableH-blockH)*.16);
+  for(let c=1;c<cols;c++){const dx=left+c*colW;ctx.strokeStyle='rgb(205,205,205)';ctx.lineWidth=Math.max(1,physicalPx(.16,copies,w));ctx.beginPath();ctx.moveTo(dx,startY);ctx.lineTo(dx,startY+blockH);ctx.stroke()}
   for(let q=0;q<e.questions;q++){
-    const col=Math.floor(q/rows),row=q%rows,baseX=left+col*colW,cy=top+row*rowH+rowH*.490,bm=responseBubbleMetrics(copies,e.questions,cols,rowH,colW,w,e.options);
-    ctx.fillStyle=dark;ctx.font=`800 ${Math.max(11,Math.min(w*(legacy?.024:triple?.0208:double?.0205:.0195)*(v.numbers/175),rowH*.52))}px Arial`;ctx.textAlign='right';ctx.fillText(String(q+1),baseX+colW*bm.numberOffset,cy+rowH*.13);
-    const optionStart=baseX+colW*bm.optionStartRatio,optionGap=bm.optionGap,r=bm.radius*(v.size/122);
+    const col=Math.floor(q/rows),row=q%rows,baseX=left+col*colW,cy=startY+row*rowH+rowH*.50,bm=responseBubbleMetrics(copies,e.questions,cols,rowH,colW,w,e.options);
+    ctx.fillStyle=dark;ctx.font=`700 ${Math.max(10,physicalPx(copies>=3?3.3:3.8,copies,w))}px Arial`;ctx.textAlign='right';ctx.fillText(String(q+1),baseX+colW*bm.numberOffset,cy+physicalPx(1.35,copies,w));
+    const optionStart=baseX+colW*bm.optionStartRatio,optionGap=bm.optionGap,r=bm.radius*(v.size/124);
     for(let o=0;o<e.options;o++){
-      const cx=optionStart+o*optionGap;ctx.strokeStyle=dark;ctx.lineWidth=Math.max(1.8,w*.00215*v.stroke/145);ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
-      ctx.fillStyle=dark;ctx.font=`700 ${Math.max(10,r*.96*(v.text/140))}px Arial`;ctx.textAlign='center';ctx.fillText(letters[o],cx,cy+r*.33);
+      const cx=optionStart+o*optionGap;ctx.strokeStyle='rgb(120,120,120)';ctx.lineWidth=Math.max(1.2,physicalPx(.34,copies,w)*v.stroke/145);ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
+      ctx.fillStyle='rgb(80,80,80)';ctx.font=`500 ${Math.max(8,r*.94*(v.text/140))}px Arial`;ctx.textAlign='center';ctx.fillText(letters[o],cx,cy+r*.34);
     }
   }
-  ctx.fillStyle=dark;ctx.textAlign='center';ctx.font=`700 ${Math.max(8,w*(legacy?.0108:triple?.0090:.0095))}px Arial`;ctx.fillText(`EvalúaCam OMR v13 · ID ${examIdentity(e)} · EV-${e.code||'0000'}-${e.version||'A'} · No cubrir marcadores`,w/2,h*SHEET_GEOMETRY.footerY);
+  ctx.fillStyle='rgb(70,70,70)';ctx.textAlign='center';ctx.font=`600 ${Math.max(7,physicalPx(copies>=3?1.9:2.15,copies,w))}px Arial`;ctx.fillText(`EvalúaCam OMR Pro · No cubra los cuadrados ni las barras · ${examIdentity(e)}`,w/2,h*g.footerY);
   ctx.restore();
 }
 $('#downloadSheetImageBtn').onclick=()=>{
   const base=selectedSheetExam();if(!base)return toast('Primero seleccione una evaluación.');
   const cfg=state.settings.print||{},copies=+($('#copiesPerPage').value||cfg.copies||1),exam=getConfiguredRenderExam(base);
-  const canvas=createA4SheetCanvas(exam,copies,2480);
-  canvas.toBlob(blob=>{if(!blob)return toast('No fue posible generar la imagen.');const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`hoja_${exam.name.replace(/[^a-z0-9áéíóúñ]+/gi,'_')}_${copies}xA4_HD.png`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('PNG generado exactamente igual a la vista previa.')},'image/png');
+  const canvas=createLetterSheetCanvas(exam,copies,2550);
+  canvas.toBlob(blob=>{if(!blob)return toast('No fue posible generar la imagen.');const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`hoja_${exam.name.replace(/[^a-z0-9áéíóúñ]+/gi,'_')}_${copies}xCarta_HD.png`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('PNG Carta generado exactamente igual a la vista previa.')},'image/png');
 };
 applyProfile('auto');
 function currentScanCopies(){
@@ -251,15 +263,15 @@ function currentScanCopies(){
   return [0,1,2,3,4].includes(raw)?raw:0;
 }
 function scanAspectCandidates(mode=currentScanCopies()){
-  const values=mode?[mode]:[3,1,2,4];
+  const values=mode?[mode]:[1,2,3,4];
   return values.map(copies=>({copies,aspect:responseSheetAspectForCopies(copies)}));
 }
-function markerSpecsForAspect(aspect){
-  const xLeft=SHEET_GEOMETRY.markerX+SHEET_GEOMETRY.marker/2;
+function markerSpecsForAspect(aspect,copies=1){
+  const g=sheetGeometryForCopies(copies),xLeft=g.markerX+g.marker/2;
   const xRight=1-xLeft;
-  const top=SHEET_GEOMETRY.markerTop+SHEET_GEOMETRY.marker*aspect/2;
-  const mid=SHEET_GEOMETRY.markerMid;
-  const bottom=SHEET_GEOMETRY.markerBottom-SHEET_GEOMETRY.marker*aspect/2;
+  const top=g.markerTop+g.marker*aspect/2;
+  const mid=g.markerMid;
+  const bottom=g.markerBottom-g.marker*aspect/2;
   return [
     {id:'tl',x:xLeft,y:top},{id:'tr',x:xRight,y:top},
     {id:'ml',x:xLeft,y:mid},{id:'mr',x:xRight,y:mid},
@@ -306,7 +318,7 @@ function drawScanOverlay(detection){
 function updateScanGuideGeometry(){
   const frame=$('#scanFrame');if(!frame)return;
   frame.style.width='88%';frame.style.height='80%';frame.dataset.copies=String(currentScanCopies());
-  const mode=currentScanCopies(),format=mode===0?'Deteccion automatica de formato':mode===3?'3 por pagina - horizontal':mode===2?'2 por pagina - vertical':mode===4?'4 por pagina - legado':'1 por pagina - vertical';
+  const mode=currentScanCopies(),format=mode===0?'Deteccion automatica de formato':mode===4?'4 por pagina - cuadrícula 2×2':mode===3?'3 por pagina - cuadrícula cámara-segura':mode===2?'2 por pagina - Carta horizontal':'1 por pagina - Carta vertical';
   if($('#scanLiveFormat'))$('#scanLiveFormat').textContent=format;
   resizeScanOverlay();
 }
@@ -411,18 +423,19 @@ function homographyLeastSquares(canonical,source){
 }
 function mapHomography(H,u,v){const den=H[6]*u+H[7]*v+1;if(Math.abs(den)<1e-9)return null;return {x:(H[0]*u+H[1]*v+H[2])/den,y:(H[3]*u+H[4]*v+H[5])/den}}
 function sampleMappedDarkRatio(img,H,u0,v0,u1,v1,cols=18,rows=64){let dark=0,total=0;for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){const u=u0+(u1-u0)*(i+.5)/cols,v=v0+(v1-v0)*(j+.5)/rows,p=mapHomography(H,u,v);if(!p)continue;const x=Math.round(p.x),y=Math.round(p.y);if(x<0||y<0||x>=img.width||y>=img.height)continue;const k=(y*img.width+x)*4,g=img.data[k]*.299+img.data[k+1]*.587+img.data[k+2]*.114;if(g<150)dark++;total++}return total?dark/total:0}
-function timingSignatureEvidence(img,H){
-  const pattern=activeTimingPattern(),x=SHEET_GEOMETRY.timingX,y0=SHEET_GEOMETRY.timingTop,step=SHEET_GEOMETRY.timingStep*.82,barH=.010,mark=SHEET_GEOMETRY.marker;let sum=0,min=1;
+function timingSignatureEvidence(img,H,copies=1){
+  const g=sheetGeometryForCopies(copies),pattern=activeTimingPattern(),x=g.timingX,y0=g.timingTop,step=g.timingStep,barH=g.timingBarH,mark=g.marker;let sum=0,min=1;
   for(let i=0;i<pattern.length;i++){
     const f=pattern[i],y=y0+i*step,dark=sampleMappedDarkRatio(img,H,x+mark*.03,y-barH*.10,x+mark*Math.max(.14,f-.045),y+barH*1.10,14,5),tail=sampleMappedDarkRatio(img,H,x+mark*Math.min(1.02,f+.06),y-barH*.10,x+mark*1.12,y+barH*1.10,8,5),gap=sampleMappedDarkRatio(img,H,x-mark*.03,y+barH*1.20,x+mark*1.12,y+step*.72,11,3),darkScore=clamp01((dark-.14)/.54),tailScore=clamp01((.36-tail)/.36),gapScore=clamp01((.31-gap)/.31),score=darkScore*(.72+.18*tailScore+.10*gapScore);sum+=score;min=Math.min(min,score);
   }
   const average=sum/pattern.length;return {score:average*.90+min*.10,average,min};
 }
-function orientationEvidence(img,H){
-  const expected=sampleMappedDarkRatio(img,H,.045,.60,.105,.84),controls=[sampleMappedDarkRatio(img,H,.895,.60,.955,.84),sampleMappedDarkRatio(img,H,.045,.16,.105,.40),sampleMappedDarkRatio(img,H,.895,.16,.955,.40)],other=Math.max(...controls),raw=expected-other*.82,signature=timingSignatureEvidence(img,H),evidence=clamp01((raw-.015)/.14)*.35+signature.score*.65;return {expected,other,raw,signature:signature.score,signatureMin:signature.min,evidence};
+function orientationEvidence(img,H,copies=1){
+  const g=sheetGeometryForCopies(copies),y1=Math.min(.94,g.timingTop+g.timingStep*10+g.timingBarH),x0=Math.max(.004,g.timingX-g.marker*.08),x1=Math.min(.15,g.timingX+g.marker*1.18),rx0=1-x1,rx1=1-x0;
+  const expected=sampleMappedDarkRatio(img,H,x0,g.timingTop-g.timingBarH,x1,y1),controls=[sampleMappedDarkRatio(img,H,rx0,g.timingTop-g.timingBarH,rx1,y1),sampleMappedDarkRatio(img,H,x0,.16,x1,.40),sampleMappedDarkRatio(img,H,rx0,.16,rx1,.40)],other=Math.max(...controls),raw=expected-other*.82,signature=timingSignatureEvidence(img,H,copies),evidence=clamp01((raw-.012)/.14)*.35+signature.score*.65;return {expected,other,raw,signature:signature.score,signatureMin:signature.min,evidence};
 }
-function orientationMappings(pattern,aspect){
-  const specs=markerSpecsForAspect(aspect),byId=Object.fromEntries(specs.map(p=>[p.id,p])),a0=pattern.a0,a1=pattern.a1,am=pattern.am,b0=pattern.b0,b1=pattern.b1,bm=pattern.bm;
+function orientationMappings(pattern,aspect,copies=1){
+  const specs=markerSpecsForAspect(aspect,copies),byId=Object.fromEntries(specs.map(p=>[p.id,p])),a0=pattern.a0,a1=pattern.a1,am=pattern.am,b0=pattern.b0,b1=pattern.b1,bm=pattern.bm;
   const make=(lt,lm,lb,rt,rm,rb)=>{const pairs=[];for(const [id,p] of [['tl',lt],['tr',rt],['ml',lm],['mr',rm],['bl',lb],['br',rb]])if(p)pairs.push({id,canonical:{x:byId[id].x,y:byId[id].y},source:{x:p.x,y:p.y}});return pairs};
   return [make(a0,am,a1,b0,bm,b1),make(b0,bm,b1,a0,am,a1),make(a1,am,a0,b1,bm,b0),make(b1,bm,b0,a1,am,a0)];
 }
@@ -440,8 +453,8 @@ function findBestMarkerPattern(candidates,img,aspectOptions){
     patterns.push({a0,a1,am:midA,b0,b1,bm:midB,coverage,observedAspect,format:bestFormat,markerCount:4+midCount,markerBackground,geom,quad});
   }
   patterns.sort((a,b)=>b.geom-a.geom);let best=null;
-  for(const p of patterns.slice(0,18))for(const mapping of orientationMappings(p,p.format.aspect)){
-    const H=homographyLeastSquares(mapping.map(x=>x.canonical),mapping.map(x=>x.source));if(!H)continue;const orientation=orientationEvidence(img,H),confidence=clamp01(p.geom*.74+orientation.evidence*.20+(p.markerCount/6)*.06),score=confidence+orientation.raw*.7;if(!best||score>best.score)best={...p,mapping,H,orientation,confidence,score};
+  for(const p of patterns.slice(0,18))for(const mapping of orientationMappings(p,p.format.aspect,p.format.copies)){
+    const H=homographyLeastSquares(mapping.map(x=>x.canonical),mapping.map(x=>x.source));if(!H)continue;const orientation=orientationEvidence(img,H,p.format.copies),confidence=clamp01(p.geom*.74+orientation.evidence*.20+(p.markerCount/6)*.06),score=confidence+orientation.raw*.7;if(!best||score>best.score)best={...p,mapping,H,orientation,confidence,score};
   }
   return best;
 }
@@ -499,11 +512,11 @@ function warpCanvasByHomography(source,H,outW,outH){
   for(let y=0;y<outH;y++){const v=y/(outH-1);for(let x=0;x<outW;x++){const u=x/(outW-1),p=mapHomography(H,u,v),di=(y*outW+x)*4;if(!p){dst[di]=dst[di+1]=dst[di+2]=255;dst[di+3]=255;continue}const sx=Math.max(0,Math.min(sw-1.001,p.x)),sy=Math.max(0,Math.min(sh-1.001,p.y)),x0=Math.floor(sx),y0=Math.floor(sy),x1=Math.min(sw-1,x0+1),y1=Math.min(sh-1,y0+1),fx=sx-x0,fy=sy-y0,i00=(y0*sw+x0)*4,i10=(y0*sw+x1)*4,i01=(y1*sw+x0)*4,i11=(y1*sw+x1)*4;for(let c=0;c<3;c++){const top=sd[i00+c]*(1-fx)+sd[i10+c]*fx,bottom=sd[i01+c]*(1-fx)+sd[i11+c]*fx;dst[di+c]=top*(1-fy)+bottom*fy}dst[di+3]=255}}
   octx.putImageData(od,0,0);return out;
 }
-function rectifiedTimingScore(canvas){const ctx=canvas.getContext('2d',{willReadFrequently:true}),img=ctx.getImageData(0,0,canvas.width,canvas.height),identity=[canvas.width,0,0,0,canvas.height,0,0,0],e=orientationEvidence(img,identity);return e}
+function rectifiedTimingScore(canvas,copies=1){const ctx=canvas.getContext('2d',{willReadFrequently:true}),img=ctx.getImageData(0,0,canvas.width,canvas.height),identity=[canvas.width,0,0,0,canvas.height,0,0,0],e=orientationEvidence(img,identity,copies);return e}
 function rectifyFromDetection(canvas,detected){
   if(!detected?.ok||!detected.canonicalSources?.length)return null;
   const canonical=detected.canonicalSources.map(p=>({x:p.u,y:p.v})),source=detected.canonicalSources.map(p=>({x:p.x*canvas.width,y:p.y*canvas.height})),H=homographyLeastSquares(canonical,source);if(!H)return null;
-  const outW=920,outH=Math.max(620,Math.min(1900,Math.round(outW/detected.aspect))),out=warpCanvasByHomography(canvas,H,outW,outH),timing=rectifiedTimingScore(out);
+  const outW=920,outH=Math.max(620,Math.min(1900,Math.round(outW/detected.aspect))),out=warpCanvasByHomography(canvas,H,outW,outH),timing=rectifiedTimingScore(out,detected.copies);
   const timingVerified=timing.signature>.36||(timing.raw>.105&&timing.expected>.105);if(detected.paperEvidence===false||timing.expected<.040||timing.raw<.018||!timingVerified){toast('La hoja no corresponde a la evaluación seleccionada o su código único no es legible.');return null;}
   return {canvas:out,quality:detected.confidence,markers:detected.markers,markerCount:detected.markerCount||detected.canonicalSources.length,copies:detected.copies,aspect:detected.aspect,timing};
 }
@@ -526,10 +539,10 @@ function robustBubbleScore(data,cx,cy,r){
 }
 function median(values){const a=[...values].sort((x,y)=>x-y),m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2}
 function readAnswersFromRectified(rectified,exam){
-  const work=rectified.canvas,ctx=work.getContext('2d',{willReadFrequently:true}),w=work.width,h=work.height,data=enhanceImageData(ctx.getImageData(0,0,w,h)),answers=[],scores=[],grid=answerGridForQuestions(exam.questions),cols=grid.cols,rows=grid.rows,sens=$('#scanSensitivity')?.value||'normal',minScore=sens==='high'?22:sens==='low'?42:30,minGap=sens==='high'?5:sens==='low'?13:8,left=w*SHEET_GEOMETRY.safeLeft,right=w*SHEET_GEOMETRY.safeRight,usable=right-left,top=h*SHEET_GEOMETRY.answerTop,bottom=h*SHEET_GEOMETRY.answerBottom,colW=usable/cols,rowH=(bottom-top)/rows,bubbleScale=Math.max(.80,Math.min(1.35,(+state.settings.print?.bubble||124)/124));
+  const work=rectified.canvas,ctx=work.getContext('2d',{willReadFrequently:true}),w=work.width,h=work.height,data=enhanceImageData(ctx.getImageData(0,0,w,h)),answers=[],scores=[],g=sheetGeometryForCopies(rectified.copies),grid=answerGridForQuestions(exam.questions,rectified.copies),cols=grid.cols,rows=grid.rows,sens=$('#scanSensitivity')?.value||'normal',minScore=sens==='high'?22:sens==='low'?42:30,minGap=sens==='high'?5:sens==='low'?13:8,left=w*g.safeLeft,right=w*g.safeRight,usable=right-left,top=h*g.answerTop,bottom=h*g.answerBottom,colW=usable/cols,availableH=bottom-top,targetPitch=physicalPx(rectified.copies===1?14.0:rectified.copies===2?11.0:7.4,rectified.copies,w),rowH=Math.min(availableH/rows,targetPitch),blockH=rowH*rows,startY=top+Math.max(0,(availableH-blockH)*.16),bubbleScale=Math.max(.80,Math.min(1.35,(+state.settings.print?.bubble||124)/124));
   let ambiguous=0;
   for(let q=0;q<exam.questions;q++){
-    const col=Math.floor(q/rows),row=q%rows,baseX=left+col*colW,cy=top+row*rowH+rowH*.490,bm=responseBubbleMetrics(rectified.copies,exam.questions,cols,rowH,colW,w,exam.options),optionStart=baseX+colW*bm.optionStartRatio,optionGap=bm.optionGap,r=Math.max(7,bm.radius*bubbleScale*.86);
+    const col=Math.floor(q/rows),row=q%rows,baseX=left+col*colW,cy=startY+row*rowH+rowH*.50,bm=responseBubbleMetrics(rectified.copies,exam.questions,cols,rowH,colW,w,exam.options),optionStart=baseX+colW*bm.optionStartRatio,optionGap=bm.optionGap,r=Math.max(7,bm.radius*bubbleScale*.86);
     let best=-1,bestScore=-1,second=-1;const optionScores=[];
     for(let o=0;o<exam.options;o++){
       const score=robustBubbleScore(data,optionStart+o*optionGap,cy,r);optionScores.push(score);
@@ -546,13 +559,13 @@ function readAnswersFromRectified(rectified,exam){
   }
   return {answers,ambiguous,scores};
 }
-function cropStudentNameRegion(rectifiedCanvas,exam){
+function cropStudentNameRegion(rectifiedCanvas,exam,copies=1){
   if(!rectifiedCanvas?.width||!rectifiedCanvas?.height||exam?.studentIdMode==='code')return '';
-  const w=rectifiedCanvas.width,h=rectifiedCanvas.height;
-  const x=Math.max(0,Math.round(w*(SHEET_GEOMETRY.safeLeft-.012)));
-  const y=Math.max(0,Math.round(h*(SHEET_GEOMETRY.fieldTop-.060)));
-  const cropW=Math.min(w-x,Math.round(w*(SHEET_GEOMETRY.safeRight-SHEET_GEOMETRY.safeLeft+.024)));
-  const cropH=Math.min(h-y,Math.round(h*(SHEET_GEOMETRY.fieldHeight+.078)));
+  const w=rectifiedCanvas.width,h=rectifiedCanvas.height,g=sheetGeometryForCopies(copies);
+  const x=Math.max(0,Math.round(w*(g.safeLeft-.006)));
+  const y=Math.max(0,Math.round(h*(g.fieldTop-.035)));
+  const cropW=Math.min(w-x,Math.round(w*(g.safeRight-g.safeLeft+.012)*.68));
+  const cropH=Math.min(h-y,Math.round(h*(g.fieldHeight+.055)));
   const out=document.createElement('canvas');out.width=Math.max(720,cropW);out.height=Math.max(150,Math.round(out.width*cropH/cropW));
   const oc=out.getContext('2d');oc.imageSmoothingEnabled=true;oc.imageSmoothingQuality='high';oc.fillStyle='#fff';oc.fillRect(0,0,out.width,out.height);
   oc.drawImage(rectifiedCanvas,x,y,cropW,cropH,0,0,out.width,out.height);
@@ -562,7 +575,7 @@ function processImage(canvas,hint=null){
   const id=$('#scanExamSelect').value,exam=state.exams.find(x=>x.id===id);if(!exam){toast('Seleccione una prueba.');return false}
   const rectified=rectifyByMarkers(canvas,hint);if(!rectified){setScanGuide('adjust','No se pudo aislar la hoja completa');toast('No se pudo leer la hoja. Muestre la hoja completa, sin cubrir los marcadores, y vuelva a intentarlo.');return false}
   const reading=readAnswersFromRectified(rectified,exam);
-  try{state.lastScanCaptureDataUrl=rectified.canvas.toDataURL('image/jpeg',0.88);state.lastStudentNameCropDataUrl=cropStudentNameRegion(rectified.canvas,exam)}catch(err){state.lastScanCaptureDataUrl='';state.lastStudentNameCropDataUrl=''}
+  try{state.lastScanCaptureDataUrl=rectified.canvas.toDataURL('image/jpeg',0.88);state.lastStudentNameCropDataUrl=cropStudentNameRegion(rectified.canvas,exam,rectified.copies)}catch(err){state.lastScanCaptureDataUrl='';state.lastStudentNameCropDataUrl=''}
   state.lastReadDiagnostics={ambiguous:reading.ambiguous,alignment:rectified.quality,copies:rectified.copies,markerCount:rectified.markerCount,scores:reading.scores};showScanResult(exam,reading.answers,true,rectified.markerCount);toast('Hoja detectada y corregida automaticamente.');return true;
 }
 window.EvaluaCamOMR={detectSheetOnCanvas,rectifyByMarkers,readAnswersFromRectified,processImage};
@@ -645,12 +658,12 @@ async function ensureFeedbackCapture(result){
 }
 function feedbackOverlayHtml(result,exam){
   if(!exam)return '';
-  const w=2480,h=3508,copies=Math.max(1,Math.min(3,+(result?.templateCopies||3))),grid=answerGridForQuestions(exam.questions),cols=grid.cols,rows=grid.rows;
-  const left=w*SHEET_GEOMETRY.safeLeft,right=w*SHEET_GEOMETRY.safeRight,usable=right-left,top=h*SHEET_GEOMETRY.answerTop,bottom=h*SHEET_GEOMETRY.answerBottom,colW=usable/cols,rowH=(bottom-top)/rows;
+  const w=920,copies=Math.max(1,Math.min(4,+(result?.templateCopies||1))),aspect=responseSheetAspectForCopies(copies),h=Math.round(w/aspect),g=sheetGeometryForCopies(copies),grid=answerGridForQuestions(exam.questions,copies),cols=grid.cols,rows=grid.rows;
+  const left=w*g.safeLeft,right=w*g.safeRight,usable=right-left,top=h*g.answerTop,bottom=h*g.answerBottom,colW=usable/cols,availableH=bottom-top,targetPitch=physicalPx(copies===1?14.0:copies===2?11.0:7.4,copies,w),rowH=Math.min(availableH/rows,targetPitch),blockH=rowH*rows,startY=top+Math.max(0,(availableH-blockH)*.16);
   const bubbleScale=Math.max(.80,Math.min(1.35,(+state.settings.print?.bubble||124)/124));
   let html='';
   for(let q=0;q<exam.questions;q++){
-    const col=Math.floor(q/rows),row=q%rows,baseX=left+col*colW,cy=top+row*rowH+rowH*.490,bm=responseBubbleMetrics(copies,exam.questions,cols,rowH,colW,w,exam.options),optionStart=baseX+colW*bm.optionStartRatio,optionGap=bm.optionGap,ring=Math.max(7,bm.radius*bubbleScale*.96)*2.06;
+    const col=Math.floor(q/rows),row=q%rows,baseX=left+col*colW,cy=startY+row*rowH+rowH*.50,bm=responseBubbleMetrics(copies,exam.questions,cols,rowH,colW,w,exam.options),optionStart=baseX+colW*bm.optionStartRatio,optionGap=bm.optionGap,ring=Math.max(7,bm.radius*bubbleScale*.96)*2.06;
     const answer=String(result.answers?.[q]||''),correct=String(exam.key?.[q]||''),badgeX=baseX+colW*(bm.numberOffset*.56),badgeW=Math.max(30,rowH*.44),badgeH=Math.max(24,rowH*.34);
     const ringMarkup=(letter,kind)=>{const idx=letters.indexOf(letter);if(idx<0||idx>=exam.options)return '';const cx=optionStart+idx*optionGap;return `<span class="feedback-mark ${kind}" style="left:${(cx-ring/2)/w*100}%;top:${(cy-ring/2)/h*100}%;width:${ring/w*100}%;height:${ring/h*100}%;"></span>`};
     const badgeMarkup=(kind,text)=>`<span class="feedback-badge ${kind}" style="left:${(badgeX-badgeW*.42)/w*100}%;top:${(cy-badgeH/2)/h*100}%;min-width:${badgeW/w*100}%;height:${badgeH/h*100}%;line-height:${badgeH/h*100}%;">${text}</span>`;
@@ -710,10 +723,10 @@ $('#feedbackPrintLayout').value=String(state.settings.print?.feedbackLayout||2);
 $('#feedbackPrintLayout').onchange=e=>{state.settings.print={...state.settings.print,feedbackLayout:+e.target.value||2};saveLocalOnly();};
 $('#printFeedbackBtn').onclick=()=>printFeedbackResults(filteredResults(),{perPage:feedbackPrintLayout()});
 function renderStats(){const avg=state.results.length?Math.round(state.results.reduce((a,b)=>a+b.pct,0)/state.results.length):null;$('#statExams').textContent=state.exams.length;$('#statScans').textContent=state.results.length;$('#statAverage').textContent=avg===null?'—':avg+'%';$('#statLast').textContent=state.exams[0]?.name||'—';renderDashboardHierarchy()}
-const printDefaults={copies:3,questions:20,version:'A',text:140,title:150,instructions:165,headers:175,numbers:175,black:130,contrast:135,sharp:130,stroke:145,bubble:124,marker:145,safeMargins:true,feedbackLayout:2,layoutVersion:12};
+const printDefaults={copies:3,questions:20,version:'A',text:140,title:150,instructions:165,headers:175,numbers:175,black:130,contrast:135,sharp:130,stroke:145,bubble:124,marker:145,safeMargins:true,feedbackLayout:2,layoutVersion:13};
 state.settings.print={...printDefaults,...(state.settings.print||{})};
 function setCfg(id,value){const el=$('#'+id);if(el)el.value=value}
-function configValues(){return {copies:+$('#cfgCopies').value,questions:+$('#cfgQuestions').value,version:$('#cfgVersion').value,text:+$('#cfgText').value,title:+$('#cfgTitle').value,instructions:+$('#cfgInstructions').value,headers:+$('#cfgHeaders').value,numbers:+$('#cfgNumbers').value,black:+$('#cfgBlack').value,contrast:+$('#cfgContrast').value,sharp:+$('#cfgSharp').value,stroke:+$('#cfgStroke').value,bubble:+$('#cfgBubble').value,marker:+$('#cfgMarker').value,safeMargins:$('#cfgSafeMargins').checked,feedbackLayout:feedbackPrintLayout(),layoutVersion:12}}
+function configValues(){return {copies:+$('#cfgCopies').value,questions:+$('#cfgQuestions').value,version:$('#cfgVersion').value,text:+$('#cfgText').value,title:+$('#cfgTitle').value,instructions:+$('#cfgInstructions').value,headers:+$('#cfgHeaders').value,numbers:+$('#cfgNumbers').value,black:+$('#cfgBlack').value,contrast:+$('#cfgContrast').value,sharp:+$('#cfgSharp').value,stroke:+$('#cfgStroke').value,bubble:+$('#cfgBubble').value,marker:+$('#cfgMarker').value,safeMargins:$('#cfgSafeMargins').checked,feedbackLayout:feedbackPrintLayout(),layoutVersion:13}}
 function applyConfigToMain(v){setCfg('copiesPerPage',v.copies);setCfg('blackLevel',v.black);setCfg('contrast',v.contrast);setCfg('sharpness',v.sharp);setCfg('bubbleStroke',v.stroke);setCfg('bubbleSize',v.bubble);setCfg('markerDarkness',v.marker);renderPrintPreviewStyle();updateOptimizer()}
 function makePreviewSheet(e,questions,version){const paper=$('#printArea').cloneNode(true);paper.removeAttribute('id');paper.classList.add('config-preview-sheet');paper.querySelector('[id="sheetTitle"]').textContent=e?.name||'Evaluación de Matemáticas';paper.querySelector('[id="sheetMeta"]').textContent=`${questions} preguntas · Versión ${version}`;paper.querySelector('[id="sheetCode"]').textContent=(e?.code||'2025')+'-'+version;const box=paper.querySelector('[id="sheetQuestions"]');box.removeAttribute('id');box.innerHTML='';const opts=e?.options||5;for(let i=0;i<questions;i++){const row=document.createElement('div');row.className='sheet-question';row.innerHTML=`<span class="qnum">${i+1}.</span>`+letters.slice(0,opts).map(l=>`<span class="sheet-bubble"><i></i>${l}</span>`).join('');box.appendChild(row)}paper.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));return paper}
 function updateConfigPreview(){
@@ -722,9 +735,9 @@ function updateConfigPreview(){
   applyConfigToMain(v);
   const base=state.exams.find(x=>x.id===$('#sheetExamSelect').value)||state.exams[0],exam=getConfiguredRenderExam(base,{questions:v.questions,version:v.version});
   const grid=$('#configPreviewGrid');grid.className=`config-preview-grid canonical-preview copies-${v.copies}`;grid.innerHTML='';
-  const canvas=createA4SheetCanvas(exam,v.copies,1240);canvas.className='canonical-preview-canvas';canvas.setAttribute('aria-label','Vista previa exacta de la página A4 final');grid.appendChild(canvas);grid.classList.toggle('show-safe-margins',v.safeMargins);
-  $('#cfgPreviewMode').textContent=v.copies===3?'3 hojas por página (horizontal)':v.copies===2?'2 hojas por página (vertical)':'1 hoja grande por página';
-  let score=100-Math.abs(v.black-125)*.11-Math.abs(v.contrast-130)*.08-Math.abs(v.sharp-125)*.05-Math.max(0,135-v.stroke)*.12-Math.max(0,118-v.bubble)*.10-Math.max(0,140-v.headers)*.08-Math.max(0,140-v.numbers)*.08-(v.copies===3?1:0);score=Math.max(60,Math.min(99,Math.round(score)));$('#cfgQualityScore').textContent=score+'%';$('#cfgQualityBar').style.width=score+'%';$('#cfgQualityLabel').textContent=score>=94?'Excelente':score>=86?'Muy buena':'Mejorable';$('#cfgQualityText').textContent=v.copies===3?'Diseño horizontal de 3 hojas por página, optimizado para círculos más grandes y mejor lectura.':score>=94?'La vista previa y el PNG usan exactamente la misma geometría A4.':'Aumente contraste, negros o grosor de círculos.';
+  const canvas=createLetterSheetCanvas(exam,v.copies,1275);canvas.className='canonical-preview-canvas';canvas.setAttribute('aria-label','Vista previa exacta de la página Carta final');grid.appendChild(canvas);grid.classList.toggle('show-safe-margins',v.safeMargins);
+  $('#cfgPreviewMode').textContent=v.copies===4?'4 hojas por Carta · cuadrícula 2×2':v.copies===3?'3 hojas por Carta · cámara-segura':v.copies===2?'2 hojas por Carta · horizontal':'1 hoja por Carta · máxima precisión';
+  let score=100-Math.abs(v.black-125)*.11-Math.abs(v.contrast-130)*.08-Math.abs(v.sharp-125)*.05-Math.max(0,135-v.stroke)*.12-Math.max(0,118-v.bubble)*.10-Math.max(0,140-v.headers)*.08-Math.max(0,140-v.numbers)*.08-(v.copies===3?1:0);score=Math.max(60,Math.min(99,Math.round(score)));$('#cfgQualityScore').textContent=score+'%';$('#cfgQualityBar').style.width=score+'%';$('#cfgQualityLabel').textContent=score>=94?'Excelente':score>=86?'Muy buena':'Mejorable';$('#cfgQualityText').textContent=v.copies>=3?'Geometría compacta cámara-segura: se preserva el tamaño físico de círculos, marcadores y campos.':score>=94?'La vista previa y el PNG usan exactamente la misma geometría Carta.':'Aumente contraste, negros o grosor de círculos.';
 }
 function renderConfigScreen(){const p={...printDefaults,...state.settings.print};$('#cfgQuestions').innerHTML=Array.from({length:19},(_,i)=>10+i*5).map(n=>`<option value="${n}">${n} preguntas</option>`).join('');Object.entries({cfgCopies:p.copies,cfgQuestions:p.questions,cfgVersion:p.version,cfgText:p.text,cfgTitle:p.title,cfgInstructions:p.instructions,cfgHeaders:p.headers,cfgNumbers:p.numbers,cfgBlack:p.black,cfgContrast:p.contrast,cfgSharp:p.sharp,cfgStroke:p.stroke,cfgBubble:p.bubble,cfgMarker:p.marker}).forEach(([id,val])=>setCfg(id,val));$('#cfgSafeMargins').checked=p.safeMargins!==false;$('#minGrade').value=state.settings.minGrade;$('#maxGrade').value=state.settings.maxGrade;$('#passGrade').value=state.settings.passGrade;updateConfigPreview()}
 ['cfgCopies','cfgQuestions','cfgVersion','cfgText','cfgTitle','cfgInstructions','cfgHeaders','cfgNumbers','cfgBlack','cfgContrast','cfgSharp','cfgStroke','cfgBubble','cfgMarker','cfgSafeMargins'].forEach(id=>$('#'+id).addEventListener('input',updateConfigPreview));
