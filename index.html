@@ -131,11 +131,11 @@
         <div class="card toolbar-card no-print">
           <div>
             <h2>Hoja de respuestas imprimible</h2>
-            <p>Plantilla OMR v13 con revisión de confianza, seis marcadores y captura automática.</p>
+            <p>Plantilla EvalúaCam OMR Pro v14: geometría cámara-segura, círculos de mayor tamaño y seis marcadores de referencia.</p>
           </div>
           <div class="sheet-actions">
             <label class="compact-label">Copias por página
-              <select id="copiesPerPage"><option value="1">1 copia</option><option value="2">2 copias</option><option value="3" selected>3 copias · horizontal</option></select>
+              <select id="copiesPerPage"><option value="1">1 por hoja Carta · máxima precisión</option><option value="2">2 por hoja Carta · horizontal</option><option value="3" selected>3 por hoja Carta · cámara-segura</option><option value="4">4 por hoja Carta · económico</option></select>
             </label>
             <label class="compact-label">Perfil de impresión
               <select id="printPreset"><option value="auto">Optimización automática</option><option value="laser">Impresora láser</option><option value="ink">Impresora de tinta</option><option value="copy">Fotocopia</option><option value="max">Máxima precisión OMR</option><option value="custom">Personalizado</option></select>
@@ -198,7 +198,7 @@
               <div class="scan-safe-note">Los visores son zonas amplias: la aplicación corrige inclinación y perspectiva automáticamente</div>
               <div id="cameraPlaceholder" class="camera-placeholder"><div>📷</div><p>Active la cámara para comenzar</p></div>
             </div>
-            <div class="scan-tools"><label><input id="autoCaptureScan" type="checkbox" checked> Captura automática al detectar la hoja</label><label><input id="autoEnhanceScan" type="checkbox" checked> Mejorar imagen automáticamente</label><label>Formato impreso<select id="scanTemplateCopies"><option value="0" selected>Automático (recomendado)</option><option value="1">1 por página · vertical</option><option value="2">2 por página · vertical</option><option value="3">3 por página · horizontal</option></select></label><label>Sensibilidad<select id="scanSensitivity"><option value="low">Baja</option><option value="normal" selected>Normal</option><option value="high">Alta</option></select></label></div>
+            <div class="scan-tools"><label><input id="autoCaptureScan" type="checkbox" checked> Captura automática al detectar la hoja</label><label><input id="autoEnhanceScan" type="checkbox" checked> Mejorar imagen automáticamente</label><label>Formato impreso<select id="scanTemplateCopies"><option value="0" selected>Automático (recomendado)</option><option value="1">1 por Carta · vertical</option><option value="2">2 por Carta · horizontal</option><option value="3">3 por Carta · cámara-segura</option><option value="4">4 por Carta · cuadrícula 2×2</option></select></label><label>Sensibilidad<select id="scanSensitivity"><option value="low">Baja</option><option value="normal" selected>Normal</option><option value="high">Alta</option></select></label></div>
             <div class="camera-controls">
               <button id="startCameraBtn" class="secondary">Activar cámara a pantalla completa</button>
               <button id="captureBtn" class="primary" disabled>Capturar y corregir</button>
@@ -249,7 +249,7 @@
           <div class="config-layout">
             <aside class="config-controls">
               <section class="config-panel"><h3><b>1</b> Opciones generales</h3>
-                <label>Copias por hoja<select id="cfgCopies"><option value="1">1 · Grande</option><option value="2">2 · Vertical</option><option value="3">3 · Horizontal</option></select></label>
+                <label>Copias por hoja Carta<select id="cfgCopies"><option value="1">1 · Máxima precisión</option><option value="2">2 · Horizontal</option><option value="3">3 · Cámara-segura</option><option value="4">4 · Económico</option></select></label>
                 <label>Cantidad de preguntas<select id="cfgQuestions"></select></label>
                 <label>Versión de la prueba<select id="cfgVersion"><option>A</option><option>B</option><option>C</option><option>D</option></select></label>
               </section>
@@ -280,7 +280,7 @@
               </section>
             </aside>
             <section class="config-preview-panel">
-              <div class="preview-toolbar"><strong>VISTA PREVIA EN TIEMPO REAL</strong><span id="cfgPreviewMode">3 hojas por página (horizontal)</span><em>RECOMENDADO</em><label><input id="cfgSafeMargins" type="checkbox" checked> Márgenes de seguridad</label></div>
+              <div class="preview-toolbar"><strong>VISTA PREVIA EN TIEMPO REAL</strong><span id="cfgPreviewMode">3 hojas por página Carta (cámara-segura)</span><em>RECOMENDADO</em><label><input id="cfgSafeMargins" type="checkbox" checked> Márgenes de seguridad</label></div>
               <div class="preview-content">
                 <div id="configPreviewGrid" class="config-preview-grid copies-4"></div>
                 <aside class="preview-info">
@@ -297,11 +297,11 @@
     </main>
   </div>
   <div id="toast" class="toast"></div>
-  <script src="google-config.js?v=5.1.0"></script>
-  <script src="auth.js?v=5.1.0"></script>
+  <script src="google-config.js?v=5.2.0"></script>
+  <script src="auth.js?v=5.2.0"></script>
   <script src="https://accounts.google.com/gsi/client?hl=es-419" async defer></script>
-  <script src="cloud-sync.js?v=5.1.0"></script>
-  <script src="result-images.js?v=5.1.0"></script>
-  <script src="app.js?v=5.1.0"></script>
+  <script src="cloud-sync.js?v=5.2.0"></script>
+  <script src="result-images.js?v=5.2.0"></script>
+  <script src="app.js?v=5.2.0"></script>
 </body>
 </html>
