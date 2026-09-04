@@ -305,12 +305,9 @@ body.scan-live .scan-frame span{top:10%!important;font-size:16px!important;max-w
 .feedback-badge{position:absolute;display:grid;place-items:center;padding:0 4px;border-radius:999px;font-size:12px;font-weight:900;letter-spacing:.02em;color:#334155;background:rgba(255,255,255,.94);border:1.5px solid #cbd5e1;transform:translate(-50%,0)}
 .feedback-badge.multiple{color:#991b1b;border-color:#ef4444;background:rgba(255,245,245,.96)}
 .feedback-badge.blank{color:#475569;border-style:dashed;background:rgba(248,250,252,.95)}
+.batch-mode-toggle{grid-column:1/-1;padding:10px 12px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e3a8a}
 @media print{
-  body.printing-feedback .sidebar,
-  body.printing-feedback .topbar,
-  body.printing-feedback .main>.view,
-  body.printing-feedback .menu-backdrop,
-  body.printing-feedback #toast{display:none!important}
+  body.printing-feedback .sidebar,body.printing-feedback .topbar,body.printing-feedback .main>.view,body.printing-feedback .menu-backdrop,body.printing-feedback #toast{display:none!important}
   body.printing-feedback .main{padding:0!important}
   body.printing-feedback #feedbackPrintPages{display:block!important}
   body.printing-feedback .feedback-print-page{display:grid!important;box-sizing:border-box;page-break-after:always;break-after:page;justify-items:center;align-items:center}
@@ -319,9 +316,8 @@ body.scan-live .scan-frame span{top:10%!important;font-size:16px!important;max-w
   body.printing-feedback .feedback-print-page.mode-2{width:279.4mm!important;height:215.9mm!important;padding:6mm;grid-template-columns:repeat(2,minmax(0,1fr));gap:6mm}
   body.printing-feedback .feedback-print-page.mode-2[data-count='1']{grid-template-columns:1fr}
   body.printing-feedback .feedback-sheet{width:100%;height:100%;page-break-inside:avoid;break-inside:avoid;display:flex;align-items:center;justify-content:center}
-  body.printing-feedback .feedback-print-page.mode-1 .feedback-stage{width:100%;max-width:100%}
+  body.printing-feedback .feedback-print-page.mode-1 .feedback-stage,body.printing-feedback .feedback-print-page.mode-2 .feedback-stage{width:100%;max-width:100%}
   body.printing-feedback .feedback-print-page.mode-1 .feedback-base-image{width:100%;height:auto;max-height:calc(279.4mm - 12mm)}
-  body.printing-feedback .feedback-print-page.mode-2 .feedback-stage{width:100%;max-width:100%}
   body.printing-feedback .feedback-print-page.mode-2 .feedback-base-image{width:100%;height:auto;max-height:calc(215.9mm - 12mm)}
   body.printing-feedback .feedback-mark{border-width:2.4px!important}
   body.printing-feedback .feedback-badge{font-size:10.5px!important}
