@@ -1,4 +1,4 @@
-const APP_VERSION='5.2.2';
+const APP_VERSION='5.2.3';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const letters=['A','B','C','D','E'];
 const currentYear=new Date().getFullYear();
@@ -10,7 +10,7 @@ const state={
   exams:readStored('ec_exams','[]'),
   results:readStored('ec_results','[]'),
   settings:readStored('ec_settings','{"minGrade":1,"maxGrade":7,"passGrade":4,"print":{}}'),
-  currentKey:[],stream:null,deferredPrompt:null,selectedResultId:null,autoScanTimer:null,autoScanBusy:false,autoScanLocked:false,autoScanStable:0,autoScanLost:0,autoScanLast:null,autoScanOrientation:0,scanCopies:null,autoScanBest:null,scanProbeCanvas:null,autoScanDetection:null,autoScanLastGood:null,autoScanFrameCount:0,scanLastCaptureAt:0,scanStableSince:0,scanStartedAt:0,scanDetectionHistory:[]
+  currentKey:[],stream:null,deferredPrompt:null,selectedResultId:null,autoScanTimer:null,autoScanBusy:false,scanBusySince:0,autoScanLocked:false,autoScanStable:0,autoScanLost:0,autoScanLast:null,autoScanOrientation:0,scanCopies:null,autoScanBest:null,scanProbeCanvas:null,autoScanDetection:null,autoScanLastGood:null,autoScanFrameCount:0,scanLastCaptureAt:0,scanStableSince:0,scanStartedAt:0,scanDetectionHistory:[],scanPaused:false,awaitingNextSheet:false,nextSheetLostFrames:0
 };
 window.state=state;
 const feedbackCaptureCache=new Map();
@@ -97,7 +97,17 @@ function renderDashboardHierarchy(){const box=$('#dashboardCourses');if(!box)ret
 function generateKey(){const n=+$('#questionCount').value,o=+$('#optionCount').value;state.currentKey=Array(n).fill('');const box=$('#answerKey');box.classList.remove('empty-state');box.innerHTML='';for(let i=0;i<n;i++){const row=document.createElement('div');row.className='answer-row';row.innerHTML=`<strong>${i+1}</strong>`+letters.slice(0,o).map(l=>`<label class="bubble-choice"><input type="radio" name="q${i}" value="${l}"><span>${l}</span></label>`).join('');row.onchange=e=>{state.currentKey[i]=e.target.value};box.appendChild(row)}}
 $('#generateKeyBtn').onclick=generateKey;$('#clearKeyBtn').onclick=()=>{state.currentKey.fill('');$$('#answerKey input').forEach(i=>i.checked=false)};
 $('#saveExamBtn').onclick=()=>{const name=$('#examName').value.trim(),courseId=$('#examCourseSelect').value;if(!courseId)return toast('Primero cree y seleccione un curso.');if(!name)return toast('Ingrese el nombre de la prueba.');if(!state.currentKey.length)return toast('Genere primero la clave de respuestas.');if(state.currentKey.some(x=>!x))return toast('Complete todas las respuestas de la clave.');const now=new Date().toISOString(),exam={id:crypto.randomUUID(),name,courseId,course:courseName(courseId),subject:$('#examSubject').value.trim(),version:$('#examVersion').value||'A',studentIdMode:$('#studentIdMode').value||'name',questions:+$('#questionCount').value,options:+$('#optionCount').value,threshold:+$('#passThreshold').value,key:[...state.currentKey],created:now,updatedAt:now,revision:1,code:String(Math.floor(1000+Math.random()*9000))};state.exams.unshift(exam);save();refreshExamSelects();renderStats();toast('Prueba guardada correctamente.');go('sheet')};
-function refreshExamSelects(){const html=state.exams.length?state.exams.map(e=>`<option value="${e.id}">${esc(courseName(e.courseId))} · ${esc(e.name)}</option>`).join(''):'<option value="">No hay pruebas</option>';$('#sheetExamSelect').innerHTML=html;$('#scanExamSelect').innerHTML=html;refreshResultsExamFilter();}
+function rememberedScanExam(){return localStorage.getItem(storageKey('ec_scan_exam'))||''}
+function rememberScanExam(id){if(id)localStorage.setItem(storageKey('ec_scan_exam'),String(id));else localStorage.removeItem(storageKey('ec_scan_exam'))}
+function refreshExamSelects(){
+  const sheetCurrent=$('#sheetExamSelect')?.value||'',scanCurrent=$('#scanExamSelect')?.value||rememberedScanExam();
+  const html=state.exams.length?state.exams.map(e=>`<option value="${e.id}">${esc(courseName(e.courseId))} · ${esc(e.name)}</option>`).join(''):'<option value="">No hay pruebas</option>';
+  $('#sheetExamSelect').innerHTML=html;$('#scanExamSelect').innerHTML=html;
+  if(state.exams.some(e=>e.id===sheetCurrent))$('#sheetExamSelect').value=sheetCurrent;
+  if(state.exams.some(e=>e.id===scanCurrent))$('#scanExamSelect').value=scanCurrent;
+  else if(state.exams[0])$('#scanExamSelect').value=state.exams[0].id;
+  rememberScanExam($('#scanExamSelect').value);refreshResultsExamFilter();
+}
 function renderSheet(){
   const id=$('#sheetExamSelect').value,e=state.exams.find(x=>x.id===id)||state.exams[0];
   if(!e){$('#sheetQuestions').innerHTML='<p>No hay una prueba disponible.</p>';$('#sheetCanvasPreview').innerHTML='<div class="empty-state">Cree una evaluación para generar la hoja.</div>';return}
@@ -345,6 +355,8 @@ function updateScanGuideGeometry(){
 }
 function prepareScanScreen(){
   const select=$('#scanTemplateCopies');if(!select)return;
+  const remembered=rememberedScanExam(),examSelect=$('#scanExamSelect');
+  if(examSelect&&state.exams.some(e=>e.id===remembered))examSelect.value=remembered;
   const wanted=String(currentScanCopies());if([...select.options].some(o=>o.value===wanted))select.value=wanted;else select.value='0';
   state.scanCopies=Number(select.value);requestAnimationFrame(updateScanGuideGeometry);
 }
@@ -354,32 +366,45 @@ function drawVideoFrame(video,canvas,targetLong=960){
   canvas.width=Math.max(320,Math.round(vw*scale));canvas.height=Math.max(240,Math.round(vh*scale));
   const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(video,0,0,vw,vh,0,0,canvas.width,canvas.height);return true;
 }
+function batchScanEnabled(){return $('#batchScanMode')?.checked!==false}
 function resetAutoScan(){
-  state.autoScanLocked=false;state.autoScanStable=0;state.autoScanLost=0;state.autoScanLast=null;state.autoScanBusy=false;state.autoScanDetection=null;state.autoScanLastGood=null;state.autoScanFrameCount=0;state.scanStableSince=0;state.scanDetectionHistory=[];clearScanOverlay();
+  state.autoScanLocked=false;state.autoScanStable=0;state.autoScanLost=0;state.autoScanLast=null;state.autoScanBusy=false;state.scanBusySince=0;state.autoScanDetection=null;state.autoScanLastGood=null;state.autoScanFrameCount=0;state.scanStableSince=0;state.scanDetectionHistory=[];clearScanOverlay();
 }
 function stopCamera(showMessage=false){
   if(state.autoScanTimer){clearTimeout(state.autoScanTimer);state.autoScanTimer=null}
   if(state.stream){state.stream.getTracks().forEach(t=>t.stop());state.stream=null}
-  resetAutoScan();document.body.classList.remove('scan-live');$('#cameraStage')?.classList.remove('is-live');const toolbar=$('.scan-live-toolbar');if(toolbar)toolbar.setAttribute('aria-hidden','true');if($('#video'))$('#video').srcObject=null;$('#cameraPlaceholder')?.classList.remove('hidden');if($('#captureBtn'))$('#captureBtn').disabled=true;setScanGuide('searching','Coloque aproximadamente cada esquina de la hoja dentro de los cuatro visores grandes');if(showMessage)toast('Camara cerrada.');
+  state.scanPaused=false;state.awaitingNextSheet=false;state.nextSheetLostFrames=0;resetAutoScan();document.body.classList.remove('scan-live');$('#cameraStage')?.classList.remove('is-live');const toolbar=$('.scan-live-toolbar');if(toolbar)toolbar.setAttribute('aria-hidden','true');if($('#video'))$('#video').srcObject=null;$('#cameraPlaceholder')?.classList.remove('hidden');if($('#captureBtn'))$('#captureBtn').disabled=true;setScanGuide('searching','Coloque aproximadamente cada esquina de la hoja dentro de los cuatro visores grandes');if(showMessage)toast('Camara cerrada.');
 }
 function captureCurrentVideo(auto=false){
-  const video=$('#video'),canvas=$('#captureCanvas');if(!video?.videoWidth||state.autoScanBusy)return;
-  state.autoScanBusy=true;setScanGuide('capturing',auto?'Hoja detectada - capturando automaticamente...':'Procesando captura...');
-  if(!drawVideoFrame(video,canvas,2400)){state.autoScanBusy=false;setScanGuide('adjust','No se pudo obtener la imagen de la camara');return}
+  const video=$('#video'),canvas=$('#captureCanvas');if(!video?.videoWidth)return;
+  if(state.autoScanBusy){
+    const stale=Date.now()-(state.scanBusySince||0)>3500;
+    if(auto&&!stale)return;
+    if(!stale&&!auto){toast('La cámara está terminando la captura anterior.');return}
+    state.autoScanBusy=false;state.autoScanLocked=false;
+  }
+  state.autoScanBusy=true;state.scanBusySince=Date.now();if($('#captureBtn'))$('#captureBtn').disabled=true;setScanGuide('capturing',auto?'Hoja detectada - capturando automaticamente...':'Procesando captura...');
+  if(!drawVideoFrame(video,canvas,2400)){state.autoScanBusy=false;state.scanBusySince=0;if($('#captureBtn'))$('#captureBtn').disabled=false;setScanGuide('adjust','No se pudo obtener la imagen de la camara');return}
   let ok=false;try{ok=processImage(canvas,state.autoScanLastGood)===true}catch(err){console.error(err);toast('No fue posible procesar la captura.');ok=false}
-  if(ok){setTimeout(()=>stopCamera(false),350)}else setTimeout(()=>{state.autoScanBusy=false;state.autoScanLocked=false;state.autoScanStable=0;setScanGuide('searching','Vuelva a mostrar la hoja completa')},500);
+  if(ok){
+    state.autoScanBusy=false;state.scanBusySince=0;
+    if(batchScanEnabled()&&state.stream){state.scanPaused=true;if($('#captureBtn'))$('#captureBtn').disabled=true;setScanGuide('ready','Lectura lista. Guardando resultado…')}
+    else setTimeout(()=>stopCamera(false),350);
+  }else setTimeout(()=>{state.autoScanBusy=false;state.scanBusySince=0;state.autoScanLocked=false;state.autoScanStable=0;if($('#captureBtn'))$('#captureBtn').disabled=false;setScanGuide('searching','Vuelva a mostrar la hoja completa');scheduleAutoScan(120)},450);
 }
 async function startCamera(){
   try{
-    stopCamera(false);
+    const keepExam=$('#scanExamSelect')?.value||rememberedScanExam();stopCamera(false);if(keepExam&&state.exams.some(e=>e.id===keepExam)){$('#scanExamSelect').value=keepExam;rememberScanExam(keepExam)}
     state.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:2560},height:{ideal:1920},frameRate:{ideal:30,min:15}},audio:false});
     const video=$('#video');video.srcObject=state.stream;await video.play();
     const track=state.stream.getVideoTracks()[0];
     try{const caps=track.getCapabilities?.()||{},advanced={};if(caps.focusMode?.includes('continuous'))advanced.focusMode='continuous';if(caps.exposureMode?.includes('continuous'))advanced.exposureMode='continuous';if(caps.whiteBalanceMode?.includes('continuous'))advanced.whiteBalanceMode='continuous';if(caps.zoom&&Number.isFinite(caps.zoom.min))advanced.zoom=caps.zoom.min;if(Object.keys(advanced).length)await track.applyConstraints({advanced:[advanced]})}catch(err){console.debug('Camera tuning unavailable',err)}
-    $('#cameraPlaceholder').classList.add('hidden');$('#captureBtn').disabled=false;document.body.classList.add('scan-live');$('#cameraStage').classList.add('is-live');$('.scan-live-toolbar')?.setAttribute('aria-hidden','false');resetAutoScan();state.scanStartedAt=Date.now();setScanGuide('searching','Muestre la hoja completa. La captura esperará enfoque y estabilidad.');requestAnimationFrame(()=>{updateScanGuideGeometry();scheduleAutoScan()});toast('Cámara activa: acerque la hoja a los cuatro visores. No requiere precisión milimétrica.');
+    $('#cameraPlaceholder').classList.add('hidden');$('#captureBtn').disabled=false;document.body.classList.add('scan-live');$('#cameraStage').classList.add('is-live');$('.scan-live-toolbar')?.setAttribute('aria-hidden','false');state.scanPaused=false;state.awaitingNextSheet=false;state.nextSheetLostFrames=0;resetAutoScan();state.scanStartedAt=Date.now();setScanGuide('searching','Muestre la hoja completa. La captura esperará enfoque y estabilidad.');requestAnimationFrame(()=>{updateScanGuideGeometry();scheduleAutoScan()});toast('Cámara activa: acerque la hoja a los cuatro visores. No requiere precisión milimétrica.');
   }catch(err){console.error(err);stopCamera(false);toast('No fue posible abrir la camara. Revise los permisos y use HTTPS.')}
 }
 $('#startCameraBtn').onclick=startCamera;$('#captureBtn').onclick=()=>captureCurrentVideo(false);$('#exitCameraBtn').onclick=()=>stopCamera(true);
+$('#scanExamSelect').onchange=e=>{rememberScanExam(e.target.value);state.autoScanLocked=false;state.autoScanStable=0;state.scanStableSince=0;state.autoScanLastGood=null;setScanGuide('searching',`Evaluación fijada: ${e.target.options[e.target.selectedIndex]?.text||''}`);if(state.stream)scheduleAutoScan(80)};
+if($('#batchScanMode')){$('#batchScanMode').checked=localStorage.getItem(storageKey('ec_batch_scan'))!=='0';$('#batchScanMode').onchange=e=>{localStorage.setItem(storageKey('ec_batch_scan'),e.target.checked?'1':'0');toast(e.target.checked?'Modo lote automático activado.':'Modo lote automático desactivado.')}}
 $('#scanTemplateCopies').onchange=e=>{state.scanCopies=Number(e.target.value);state.settings.scanCopies=state.scanCopies;save();resetAutoScan();updateScanGuideGeometry();setScanGuide('searching','Acerque la hoja: busco automáticamente sus cuatro esquinas')};
 window.addEventListener('resize',()=>requestAnimationFrame(updateScanGuideGeometry));document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.stream)stopCamera(false)});
 $('#imageUpload').onchange=e=>{const file=e.target.files[0];if(!file)return;const img=new Image();img.onload=()=>{const c=$('#captureCanvas');c.width=img.width;c.height=img.height;c.getContext('2d').drawImage(img,0,0);processImage(c,null);URL.revokeObjectURL(img.src)};img.src=URL.createObjectURL(file)};
@@ -496,6 +521,12 @@ function autoScanStep(){
   const probe=state.scanProbeCanvas||(state.scanProbeCanvas=document.createElement('canvas'));
   if(!drawVideoFrame(video,probe,960)){setScanGuide('adjust','No se pudo leer el video');scheduleAutoScan(180);return}
   const d=detectSheetOnCanvas(probe,920,1220);d.timestamp=Date.now();state.autoScanFrameCount++;state.autoScanDetection=d;drawScanOverlay(d.ok?d:null);
+  if(state.scanPaused){scheduleAutoScan(120);return}
+  if(state.awaitingNextSheet){
+    if(!d.ok){state.nextSheetLostFrames=(state.nextSheetLostFrames||0)+1;if(state.nextSheetLostFrames>=4){state.awaitingNextSheet=false;state.nextSheetLostFrames=0;state.autoScanLocked=false;state.autoScanStable=0;state.scanStableSince=0;state.autoScanLast=null;setScanGuide('searching','Lista para la siguiente hoja. Muéstrela completa.');if($('#captureBtn'))$('#captureBtn').disabled=false}}
+    else{state.nextSheetLostFrames=0;setScanGuide('ready','Retire la hoja ya guardada para continuar…')}
+    scheduleAutoScan(130);return;
+  }
   if(!d.ok){
     state.autoScanStable=0;state.scanStableSince=0;state.autoScanLast=null;state.autoScanLost++;
     const found=d.candidates?.length||0,issue=!d.frameQuality.lightOk?'Mejore la iluminación':!d.frameQuality.contrastOk?'Use un fondo que contraste con el papel':found?'Muestre la hoja completa y sin cubrir los marcadores':'Buscando la hoja… acérquela lentamente';
@@ -621,8 +652,21 @@ function showScanResult(e,answers,aligned=true,markerCount=6){
     const rows=reviewed.map((a,i)=>{const multi=a==='*';const requires=needsManual.has(i)&&!confirmedManual.has(i);const conf=questionConfidencePct(diagnostics[i]);const stateLabel=requires?`Revisar ${conf}%`:needsManual.has(i)?'Confirmada':`Leída ${conf}%`;return `<div class="scan-review-row ${requires?'needs-review':''}"><strong>${i+1}</strong><div class="scan-review-options">${letters.slice(0,e.options).map(l=>`<button type="button" data-review-q="${i}" data-review-a="${l}" class="${a===l?'selected':''}">${l}</button>`).join('')}<button type="button" data-review-q="${i}" data-review-a="" class="blank-choice ${!a?'selected':''}">—</button></div><span>${stateLabel}</span></div>`}).join('');
     result.innerHTML=`<div class="result-summary"><div class="score-ring" style="--score:${m.pct*3.6}deg"><strong>${m.pct}%</strong></div><h3>${m.correct} de ${e.questions} correctas</h3><p class="scan-course">${esc(courseName(e.courseId))} · ${esc(e.name)}</p>${state.lastStudentNameCropDataUrl?`<div class="scan-name-crop"><span>Nombre capturado de la hoja</span><img src="${state.lastStudentNameCropDataUrl}" alt="Nombre manuscrito capturado"></div>`:''}<input id="studentNameScan" class="student-name-input" placeholder="Escriba el nombre para buscar y ordenar (opcional)" autocomplete="off"><div class="scan-confidence ${pending.length?'warn':'ok'}"><strong>Confianza OMR ${overallConfidence}%</strong><span>${pending.length?`${pending.length} respuesta(s) dudosa(s): confírmelas antes de guardar.`:'Lectura revisada y lista para guardar.'}</span></div><div class="result-grid"><div><span>Nota</span><strong>${m.grade}</strong></div><div><span>En blanco</span><strong>${m.blank}</strong></div><div><span>Múltiples</span><strong>${m.multiple}</strong></div></div><p>${aligned?`Hoja rectificada con ${markerCount} marcadores. Las respuestas dudosas requieren confirmación manual.`:'Lectura de respaldo.'}</p><div class="scan-review-list">${rows}</div><div class="scan-result-actions"><button id="saveNextScanBtn" class="primary" ${pending.length?'disabled':''}>Guardar y escanear siguiente</button><button id="saveScanBtn" class="secondary" ${pending.length?'disabled':''}>Guardar y ver resultados</button><button id="rescanBtn" class="ghost">Volver a escanear</button></div></div>`;
     $$('[data-review-q]').forEach(b=>b.onclick=()=>{const i=+b.dataset.reviewQ;reviewed[i]=b.dataset.reviewA;if(needsManual.has(i))confirmedManual.add(i);render()});
-    const saveResult=async continueScanning=>{const pendingNow=unresolved();if(pendingNow.length)return toast(`Revise ${pendingNow.length} respuesta(s) dudosa(s) antes de guardar.`);const current=calculate(),student=$('#studentNameScan').value.trim()||'Sin nombre',now=new Date().toISOString(),saved={id:crypto.randomUUID(),examId:e.id,examName:e.name,courseId:e.courseId,student,correct:current.correct,total:e.questions,pct:current.pct,grade:current.grade,date:now,updatedAt:now,revision:1,answers:[...reviewed],scanConfidence:Math.round((state.lastReadDiagnostics?.alignment||0)*100),omrConfidence:overallConfidence,uncertainCount:needsManual.size,markerCount:state.lastReadDiagnostics?.markerCount||markerCount,templateCopies:state.lastReadDiagnostics?.copies||3,nameImageDataUrl:state.lastStudentNameCropDataUrl||'',cloudStatus:'saving'};state.results.unshift(saved);state.selectedResultId=saved.id;window.EvaluaCamResultImages?.remember?.(saved.id,saved.nameImageDataUrl);save();renderStats();toast('Guardando resultado, nombre y respaldo…');try{const remote=await window.EvaluaCamCloud?.saveResult?.(saved,state.lastScanCaptureDataUrl||'',state.lastStudentNameCropDataUrl||'');if(remote?.ok){saved.captureUrl=remote.captureUrl||'';saved.captureId=remote.captureId||'';saved.nameImageUrl=remote.nameImageUrl||'';saved.nameImageId=remote.nameImageId||'';saved.cloudStatus='saved';window.EvaluaCamResultImages?.remember?.(saved.id,saved.nameImageDataUrl);saved.nameImageDataUrl='';save();toast('Resultado, nombre y captura guardados en Google Drive.')}else if(window.EvaluaCamCloud?.isConfigured?.()){saved.cloudStatus='pending';save();toast('Guardado localmente. Se reintentará la sincronización.')}}catch(err){saved.cloudStatus='pending';save();toast('Guardado localmente. Revise la conexión con Google.')}state.lastScanCaptureDataUrl='';state.lastStudentNameCropDataUrl='';if(continueScanning){result.className='empty-state';result.textContent='Resultado guardado. Preparando el siguiente escaneo…';setTimeout(()=>startCamera(),350)}else{go('results');$('#resultsCourseFilter').value=e.courseId;refreshResultsExamFilter(e.id);renderResults()}};
-    $('#saveNextScanBtn').onclick=()=>saveResult(true);$('#saveScanBtn').onclick=()=>saveResult(false);$('#rescanBtn').onclick=()=>{result.className='empty-state';result.textContent='Preparando un nuevo escaneo…';setTimeout(()=>startCamera(),180)};
+    let saving=false,autoSaveScheduled=false;
+    const saveResult=async continueScanning=>{
+      if(saving)return;const pendingNow=unresolved();if(pendingNow.length){state.scanPaused=true;return toast(`Revise ${pendingNow.length} respuesta(s) dudosa(s) antes de guardar.`)}saving=true;
+      const buttons=$$('.scan-result-actions button');buttons.forEach(b=>b.disabled=true);const current=calculate(),student=$('#studentNameScan')?.value.trim()||'Sin nombre',now=new Date().toISOString(),saved={id:crypto.randomUUID(),examId:e.id,examName:e.name,courseId:e.courseId,student,correct:current.correct,total:e.questions,pct:current.pct,grade:current.grade,date:now,updatedAt:now,revision:1,answers:[...reviewed],scanConfidence:Math.round((state.lastReadDiagnostics?.alignment||0)*100),omrConfidence:overallConfidence,uncertainCount:needsManual.size,markerCount:state.lastReadDiagnostics?.markerCount||markerCount,templateCopies:state.lastReadDiagnostics?.copies||3,nameImageDataUrl:state.lastStudentNameCropDataUrl||'',cloudStatus:'saving'};
+      state.results.unshift(saved);state.selectedResultId=saved.id;window.EvaluaCamResultImages?.remember?.(saved.id,saved.nameImageDataUrl);save();renderStats();toast('Guardando resultado, nombre y respaldo…');
+      try{const remote=await window.EvaluaCamCloud?.saveResult?.(saved,state.lastScanCaptureDataUrl||'',state.lastStudentNameCropDataUrl||'');if(remote?.ok){saved.captureUrl=remote.captureUrl||'';saved.captureId=remote.captureId||'';saved.nameImageUrl=remote.nameImageUrl||'';saved.nameImageId=remote.nameImageId||'';saved.cloudStatus='saved';window.EvaluaCamResultImages?.remember?.(saved.id,saved.nameImageDataUrl);saved.nameImageDataUrl='';save();toast('Resultado guardado. Retire la hoja.')}else if(window.EvaluaCamCloud?.isConfigured?.()){saved.cloudStatus='pending';save();toast('Guardado localmente. Se sincronizará cuando haya conexión.')}}catch(err){saved.cloudStatus='pending';save();toast('Guardado localmente. Revise la conexión con Google.')}
+      state.lastScanCaptureDataUrl='';state.lastStudentNameCropDataUrl='';
+      if(continueScanning){
+        result.className='empty-state';result.textContent='✓ Resultado guardado. Retire esta hoja y coloque la siguiente.';
+        if(batchScanEnabled()&&state.stream){state.scanPaused=false;state.awaitingNextSheet=true;state.nextSheetLostFrames=0;state.autoScanBusy=false;state.scanBusySince=0;state.autoScanLocked=true;setScanGuide('ready','Retire la hoja ya guardada para continuar…');scheduleAutoScan(100)}
+        else setTimeout(()=>startCamera(),300);
+      }else{state.scanPaused=false;go('results');$('#resultsCourseFilter').value=e.courseId;refreshResultsExamFilter(e.id);renderResults()}
+    };
+    $('#saveNextScanBtn').onclick=()=>saveResult(true);$('#saveScanBtn').onclick=()=>saveResult(false);$('#rescanBtn').onclick=()=>{state.scanPaused=false;result.className='empty-state';result.textContent='Preparando un nuevo escaneo…';if(state.stream){state.awaitingNextSheet=true;state.nextSheetLostFrames=0;setScanGuide('ready','Retire esta hoja y coloque otra…');scheduleAutoScan(100)}else setTimeout(()=>startCamera(),180)};
+    if(batchScanEnabled()&&pending.length===0&&overallConfidence>=78&&!autoSaveScheduled){autoSaveScheduled=true;setTimeout(()=>saveResult(true),450)}
   };
   render();setTimeout(()=>$('#studentNameScan')?.focus(),80);
 }
@@ -704,11 +748,7 @@ function buildFeedbackSheet(result){
   const exam=state.exams.find(x=>x.id===result.examId);
   const src=feedbackCaptureSource(result);
   const copies=Math.max(1,Math.min(4,+(result?.templateCopies||1)));
-  const item=document.createElement('article');
-  item.className='feedback-sheet';
-  item.dataset.templateCopies=String(copies);
-  item.innerHTML=`<div class="feedback-stage" style="--feedback-aspect:${responseSheetAspectForCopies(copies)};"><img class="feedback-base-image" src="${esc(src)}" alt="Hoja corregida de ${esc(result.student)}"><div class="feedback-overlay">${feedbackOverlayHtml(result,exam)}</div></div>`;
-  return item;
+  const item=document.createElement('article');item.className='feedback-sheet';item.dataset.templateCopies=String(copies);item.innerHTML=`<div class="feedback-stage" style="--feedback-aspect:${responseSheetAspectForCopies(copies)};"><img class="feedback-base-image" src="${esc(src)}" alt="Hoja corregida de ${esc(result.student)}"><div class="feedback-overlay">${feedbackOverlayHtml(result,exam)}</div></div>`;return item;
 }
 function feedbackGroups(results,perPage){const out=[];for(let i=0;i<results.length;i+=perPage)out.push(results.slice(i,i+perPage));return out}
 function buildFeedbackPrintPages(results,perPage){
