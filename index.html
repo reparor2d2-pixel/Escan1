@@ -198,7 +198,7 @@
               <div class="scan-safe-note">Los visores son zonas amplias: la aplicación corrige inclinación y perspectiva automáticamente</div>
               <div id="cameraPlaceholder" class="camera-placeholder"><div>📷</div><p>Active la cámara para comenzar</p></div>
             </div>
-            <div class="scan-tools"><label><input id="autoCaptureScan" type="checkbox" checked> Captura automática al detectar la hoja</label><label><input id="autoEnhanceScan" type="checkbox" checked> Mejorar imagen automáticamente</label><label>Formato impreso<select id="scanTemplateCopies"><option value="0" selected>Automático (recomendado)</option><option value="1">1 por Carta · vertical</option><option value="2">2 por Carta · horizontal</option><option value="3">3 por Carta · cámara-segura</option><option value="4">4 por Carta · cuadrícula 2×2</option></select></label><label>Sensibilidad<select id="scanSensitivity"><option value="low">Baja</option><option value="normal" selected>Normal</option><option value="high">Alta</option></select></label></div>
+            <div class="scan-tools"><label class="batch-mode-toggle"><input id="batchScanMode" type="checkbox" checked> <strong>Modo lote automático</strong> · mantiene la cámara activa y guarda lecturas seguras</label><label><input id="autoCaptureScan" type="checkbox" checked> Captura automática al detectar la hoja</label><label><input id="autoEnhanceScan" type="checkbox" checked> Mejorar imagen automáticamente</label><label>Formato impreso<select id="scanTemplateCopies"><option value="0" selected>Automático (recomendado)</option><option value="1">1 por Carta · vertical</option><option value="2">2 por Carta · horizontal</option><option value="3">3 por Carta · cámara-segura</option><option value="4">4 por Carta · cuadrícula 2×2</option></select></label><label>Sensibilidad<select id="scanSensitivity"><option value="low">Baja</option><option value="normal" selected>Normal</option><option value="high">Alta</option></select></label></div>
             <div class="camera-controls">
               <button id="startCameraBtn" class="secondary">Activar cámara a pantalla completa</button>
               <button id="captureBtn" class="primary" disabled>Capturar y corregir</button>
@@ -297,11 +297,11 @@
     </main>
   </div>
   <div id="toast" class="toast"></div>
-  <script src="google-config.js?v=5.2.1"></script>
-  <script src="auth.js?v=5.2.1"></script>
+  <script src="google-config.js?v=5.2.3"></script>
+  <script src="auth.js?v=5.2.3"></script>
   <script src="https://accounts.google.com/gsi/client?hl=es-419" async defer></script>
-  <script src="cloud-sync.js?v=5.2.1"></script>
-  <script src="result-images.js?v=5.2.1"></script>
-  <script src="app.js?v=5.2.1"></script>
+  <script src="cloud-sync.js?v=5.2.3"></script>
+  <script src="result-images.js?v=5.2.3"></script>
+  <script src="app.js?v=5.2.3"></script>
 </body>
 </html>
