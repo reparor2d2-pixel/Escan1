@@ -366,22 +366,6 @@ function drawVideoFrame(video,canvas,targetLong=960){
   canvas.width=Math.max(320,Math.round(vw*scale));canvas.height=Math.max(240,Math.round(vh*scale));
   const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(video,0,0,vw,vh,0,0,canvas.width,canvas.height);return true;
 }
-async function captureHighResFrame(canvas,targetLong=2400){
-  const track=state.stream?.getVideoTracks?.()[0];
-  if(track&&typeof window.ImageCapture==='function'){
-    try{
-      const capture=new ImageCapture(track);
-      const blob=await capture.takePhoto();
-      const bitmap=await createImageBitmap(blob);
-      const scale=Math.min(1,targetLong/Math.max(bitmap.width,bitmap.height));
-      canvas.width=Math.max(320,Math.round(bitmap.width*scale));canvas.height=Math.max(240,Math.round(bitmap.height*scale));
-      const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(bitmap,0,0,bitmap.width,bitmap.height,0,0,canvas.width,canvas.height);
-      bitmap.close?.();
-      return true;
-    }catch(err){console.debug('takePhoto no disponible; se usa el frame de video en vivo.',err)}
-  }
-  return drawVideoFrame($('#video'),canvas,targetLong);
-}
 function batchScanEnabled(){return $('#batchScanMode')?.checked!==false}
 function resetAutoScan(){
   state.autoScanLocked=false;state.autoScanStable=0;state.autoScanLost=0;state.autoScanLast=null;state.autoScanBusy=false;state.scanBusySince=0;state.autoScanDetection=null;state.autoScanLastGood=null;state.autoScanFrameCount=0;state.scanStableSince=0;state.scanDetectionHistory=[];clearScanOverlay();
@@ -391,7 +375,7 @@ function stopCamera(showMessage=false){
   if(state.stream){state.stream.getTracks().forEach(t=>t.stop());state.stream=null}
   state.scanPaused=false;state.awaitingNextSheet=false;state.nextSheetLostFrames=0;resetAutoScan();document.body.classList.remove('scan-live');$('#cameraStage')?.classList.remove('is-live');const toolbar=$('.scan-live-toolbar');if(toolbar)toolbar.setAttribute('aria-hidden','true');if($('#video'))$('#video').srcObject=null;$('#cameraPlaceholder')?.classList.remove('hidden');if($('#captureBtn'))$('#captureBtn').disabled=true;setScanGuide('searching','Coloque aproximadamente cada esquina de la hoja dentro de los cuatro visores grandes');if(showMessage)toast('Camara cerrada.');
 }
-async function captureCurrentVideo(auto=false){
+function captureCurrentVideo(auto=false){
   const video=$('#video'),canvas=$('#captureCanvas');if(!video?.videoWidth)return;
   if(state.autoScanBusy){
     const stale=Date.now()-(state.scanBusySince||0)>3500;
@@ -400,9 +384,7 @@ async function captureCurrentVideo(auto=false){
     state.autoScanBusy=false;state.autoScanLocked=false;
   }
   state.autoScanBusy=true;state.scanBusySince=Date.now();if($('#captureBtn'))$('#captureBtn').disabled=true;setScanGuide('capturing',auto?'Hoja detectada - capturando automaticamente...':'Procesando captura...');
-  let captured=false;try{captured=await captureHighResFrame(canvas,2400)}catch(err){console.error(err);captured=false}
-  if(!state.stream){state.autoScanBusy=false;state.scanBusySince=0;return}
-  if(!captured){state.autoScanBusy=false;state.scanBusySince=0;if($('#captureBtn'))$('#captureBtn').disabled=false;setScanGuide('adjust','No se pudo obtener la imagen de la camara');return}
+  if(!drawVideoFrame(video,canvas,2400)){state.autoScanBusy=false;state.scanBusySince=0;if($('#captureBtn'))$('#captureBtn').disabled=false;setScanGuide('adjust','No se pudo obtener la imagen de la camara');return}
   let ok=false;try{ok=processImage(canvas,state.autoScanLastGood)===true}catch(err){console.error(err);toast('No fue posible procesar la captura.');ok=false}
   if(ok){
     state.autoScanBusy=false;state.scanBusySince=0;
