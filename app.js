@@ -393,7 +393,7 @@ function resetAutoScan(){
 function stopCamera(showMessage=false){
   if(state.autoScanTimer){clearTimeout(state.autoScanTimer);state.autoScanTimer=null}
   if(state.stream){state.stream.getTracks().forEach(t=>t.stop());state.stream=null}
-  state.scanPaused=false;state.awaitingNextSheet=false;state.nextSheetLostFrames=0;resetAutoScan();document.body.classList.remove('scan-live');$('#cameraStage')?.classList.remove('is-live');const toolbar=$('.scan-live-toolbar');if(toolbar)toolbar.setAttribute('aria-hidden','true');if($('#video'))$('#video').srcObject=null;$('#cameraPlaceholder')?.classList.remove('hidden');if($('#captureBtn'))$('#captureBtn').disabled=true;setScanGuide('searching','Coloque aproximadamente cada esquina de la hoja dentro de los cuatro visores grandes');if(showMessage)toast('Camara cerrada.');
+  state.scanPaused=false;state.awaitingNextSheet=false;state.nextSheetLostFrames=0;state.lastSavedSummary='';resetAutoScan();document.body.classList.remove('scan-live');$('#cameraStage')?.classList.remove('is-live');const toolbar=$('.scan-live-toolbar');if(toolbar)toolbar.setAttribute('aria-hidden','true');if($('#video'))$('#video').srcObject=null;$('#cameraPlaceholder')?.classList.remove('hidden');if($('#captureBtn'))$('#captureBtn').disabled=true;setScanGuide('searching','Coloque aproximadamente cada esquina de la hoja dentro de los cuatro visores grandes');if(showMessage)toast('Camara cerrada.');
 }
 function captureCurrentVideo(auto=false){
   const video=$('#video'),canvas=$('#captureCanvas');if(!video?.videoWidth)return;
@@ -554,7 +554,7 @@ function autoScanStep(){
   if(state.scanPaused){scheduleAutoScan(120);return}
   if(state.awaitingNextSheet){
     if(!d.ok){state.nextSheetLostFrames=(state.nextSheetLostFrames||0)+1;if(state.nextSheetLostFrames>=4){state.awaitingNextSheet=false;state.nextSheetLostFrames=0;state.autoScanLocked=false;state.autoScanStable=0;state.scanStableSince=0;state.autoScanLast=null;setScanGuide('searching','Lista para la siguiente hoja. Muéstrela completa.');if($('#captureBtn'))$('#captureBtn').disabled=false}}
-    else{state.nextSheetLostFrames=0;setScanGuide('ready','Retire la hoja ya guardada para continuar…')}
+    else{state.nextSheetLostFrames=0;setScanGuide('ready',state.lastSavedSummary?`${state.lastSavedSummary} · Retire la hoja para continuar…`:'Retire la hoja ya guardada para continuar…')}
     scheduleAutoScan(130);return;
   }
   if(!d.ok){
@@ -689,9 +689,10 @@ function showScanResult(e,answers,aligned=true,markerCount=6){
       state.results.unshift(saved);state.selectedResultId=saved.id;window.EvaluaCamResultImages?.remember?.(saved.id,saved.nameImageDataUrl);save();renderStats();toast('Guardando resultado, nombre y respaldo…');
       try{const remote=await window.EvaluaCamCloud?.saveResult?.(saved,state.lastScanCaptureDataUrl||'',state.lastStudentNameCropDataUrl||'');if(remote?.ok){saved.captureUrl=remote.captureUrl||'';saved.captureId=remote.captureId||'';saved.nameImageUrl=remote.nameImageUrl||'';saved.nameImageId=remote.nameImageId||'';saved.cloudStatus='saved';window.EvaluaCamResultImages?.remember?.(saved.id,saved.nameImageDataUrl);saved.nameImageDataUrl='';save();toast('Resultado guardado. Retire la hoja.')}else if(window.EvaluaCamCloud?.isConfigured?.()){saved.cloudStatus='pending';save();toast('Guardado localmente. Se sincronizará cuando haya conexión.')}}catch(err){saved.cloudStatus='pending';save();toast('Guardado localmente. Revise la conexión con Google.')}
       state.lastScanCaptureDataUrl='';state.lastStudentNameCropDataUrl='';
+      state.lastSavedSummary=`✓ ${student}: ${current.correct}/${e.questions} (${current.pct}%)`;
       if(continueScanning){
         result.className='empty-state';result.textContent='✓ Resultado guardado. Retire esta hoja y coloque la siguiente.';
-        if(batchScanEnabled()&&state.stream){state.scanPaused=false;state.awaitingNextSheet=true;state.nextSheetLostFrames=0;state.autoScanBusy=false;state.scanBusySince=0;state.autoScanLocked=true;setScanGuide('ready','Retire la hoja ya guardada para continuar…');scheduleAutoScan(100)}
+        if(batchScanEnabled()&&state.stream){state.scanPaused=false;state.awaitingNextSheet=true;state.nextSheetLostFrames=0;state.autoScanBusy=false;state.scanBusySince=0;state.autoScanLocked=true;setScanGuide('ready',`${state.lastSavedSummary} · Retire la hoja para continuar…`);scheduleAutoScan(100)}
         else setTimeout(()=>startCamera(),300);
       }else{state.scanPaused=false;go('results');$('#resultsCourseFilter').value=e.courseId;refreshResultsExamFilter(e.id);renderResults()}
     };
