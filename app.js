@@ -1,24 +1,4 @@
 const APP_VERSION='5.2.3';
-// --- INICIO DIAGNÓSTICO TEMPORAL: quitar antes de fusionar a main ---
-const DEBUG_HUD=true;
-let __debugHudEl=null;
-function debugLog(msg){
-  if(!DEBUG_HUD)return;
-  if(!__debugHudEl){
-    __debugHudEl=document.createElement('div');
-    __debugHudEl.id='debugHud';
-    __debugHudEl.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99999;background:rgba(0,0,0,.85);color:#33ff66;font:11px/1.4 monospace;padding:6px 8px;max-height:40vh;overflow:auto;white-space:pre-wrap;pointer-events:none';
-    (document.body||document.documentElement).appendChild(__debugHudEl);
-  }
-  const line=document.createElement('div');
-  line.textContent=`[${new Date().toISOString().slice(11,23)}] ${msg}`;
-  __debugHudEl.appendChild(line);
-  while(__debugHudEl.childNodes.length>80)__debugHudEl.removeChild(__debugHudEl.firstChild);
-  __debugHudEl.scrollTop=__debugHudEl.scrollHeight;
-}
-window.addEventListener('error',e=>debugLog('ERROR: '+(e.message||e.error)+' @ '+(e.filename||'').split('/').pop()+':'+(e.lineno||'')));
-window.addEventListener('unhandledrejection',e=>debugLog('PROMISE-REJECTION: '+(e.reason?.message||e.reason)));
-// --- FIN DIAGNÓSTICO TEMPORAL ---
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const letters=['A','B','C','D','E'];
 const currentYear=new Date().getFullYear();
@@ -419,20 +399,14 @@ function captureCurrentVideo(auto=false){
   }else setTimeout(()=>{state.autoScanBusy=false;state.scanBusySince=0;state.autoScanLocked=false;state.autoScanStable=0;if($('#captureBtn'))$('#captureBtn').disabled=false;setScanGuide('searching','Vuelva a mostrar la hoja completa');scheduleAutoScan(120)},450);
 }
 async function startCamera(){
-  debugLog('startCamera: inicio');
   try{
     const keepExam=$('#scanExamSelect')?.value||rememberedScanExam();stopCamera(false);if(keepExam&&state.exams.some(e=>e.id===keepExam)){$('#scanExamSelect').value=keepExam;rememberScanExam(keepExam)}
-    debugLog('startCamera: pidiendo getUserMedia…');
     state.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:2560},height:{ideal:1920},frameRate:{ideal:30,min:15}},audio:false});
-    debugLog('startCamera: stream obtenido');
     const video=$('#video');video.srcObject=state.stream;await video.play();
-    debugLog('startCamera: video.play() resuelto, '+video.videoWidth+'x'+video.videoHeight);
     const track=state.stream.getVideoTracks()[0];
     try{const caps=track.getCapabilities?.()||{},advanced={};if(caps.focusMode?.includes('continuous'))advanced.focusMode='continuous';if(caps.exposureMode?.includes('continuous'))advanced.exposureMode='continuous';if(caps.whiteBalanceMode?.includes('continuous'))advanced.whiteBalanceMode='continuous';if(caps.zoom&&Number.isFinite(caps.zoom.min))advanced.zoom=caps.zoom.min;if(Object.keys(advanced).length)await track.applyConstraints({advanced:[advanced]})}catch(err){console.debug('Camera tuning unavailable',err)}
-    debugLog('startCamera: ajuste de foco/exposición listo');
     $('#cameraPlaceholder').classList.add('hidden');$('#captureBtn').disabled=false;document.body.classList.add('scan-live');$('#cameraStage').classList.add('is-live');$('.scan-live-toolbar')?.setAttribute('aria-hidden','false');state.scanPaused=false;state.awaitingNextSheet=false;state.nextSheetLostFrames=0;resetAutoScan();state.scanStartedAt=Date.now();setScanGuide('searching','Muestre la hoja completa. La captura esperará enfoque y estabilidad.');requestAnimationFrame(()=>{updateScanGuideGeometry();scheduleAutoScan()});toast('Cámara activa: acerque la hoja a los cuatro visores. No requiere precisión milimétrica.');
-    debugLog('startCamera: listo, arrancando autoScanStep');
-  }catch(err){console.error(err);debugLog('startCamera: ERROR '+(err?.message||err));stopCamera(false);toast('No fue posible abrir la camara. Revise los permisos y use HTTPS.')}
+  }catch(err){console.error(err);stopCamera(false);toast('No fue posible abrir la camara. Revise los permisos y use HTTPS.')}
 }
 $('#startCameraBtn').onclick=startCamera;$('#captureBtn').onclick=()=>captureCurrentVideo(false);$('#exitCameraBtn').onclick=()=>stopCamera(true);
 $('#scanExamSelect').onchange=e=>{rememberScanExam(e.target.value);state.autoScanLocked=false;state.autoScanStable=0;state.scanStableSince=0;state.autoScanLastGood=null;setScanGuide('searching',`Evaluación fijada: ${e.target.options[e.target.selectedIndex]?.text||''}`);if(state.stream)scheduleAutoScan(80)};
@@ -557,10 +531,7 @@ function autoScanStep(){
   if(state.autoScanBusy){scheduleAutoScan(90);return}
   const probe=state.scanProbeCanvas||(state.scanProbeCanvas=document.createElement('canvas'));
   if(!drawVideoFrame(video,probe,960)){setScanGuide('adjust','No se pudo leer el video');scheduleAutoScan(180);return}
-  const __t0=performance.now();
   const d=detectSheetOnCanvas(probe,920,1220);
-  const __dt=performance.now()-__t0;
-  debugLog(`frame#${state.autoScanFrameCount} detect=${__dt.toFixed(0)}ms cand=${d.candidates?.length||0} markers=${d.markerCount||0} conf=${(d.confidence||0).toFixed(2)} ok=${d.ok}`);
   d.timestamp=Date.now();state.autoScanFrameCount++;state.autoScanDetection=d;drawScanOverlay(d.ok?d:null);
   if(state.scanPaused){scheduleAutoScan(120);return}
   if(state.awaitingNextSheet){
