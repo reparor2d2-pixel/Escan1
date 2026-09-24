@@ -535,9 +535,19 @@ function autoScanStep(){
   d.timestamp=Date.now();state.autoScanFrameCount++;state.autoScanDetection=d;drawScanOverlay(d.ok?d:null);
   if(state.scanPaused){scheduleAutoScan(120);return}
   if(state.awaitingNextSheet){
-    if(!d.ok){state.nextSheetLostFrames=(state.nextSheetLostFrames||0)+1;if(state.nextSheetLostFrames>=4){state.awaitingNextSheet=false;state.nextSheetLostFrames=0;state.autoScanLocked=false;state.autoScanStable=0;state.scanStableSince=0;state.autoScanLast=null;setScanGuide('searching','Lista para la siguiente hoja. Muéstrela completa.');if($('#captureBtn'))$('#captureBtn').disabled=false}}
-    else{state.nextSheetLostFrames=0;setScanGuide('ready',state.lastSavedSummary?`${state.lastSavedSummary} · Retire la hoja para continuar…`:'Retire la hoja ya guardada para continuar…')}
-    scheduleAutoScan(130);return;
+    if(!d.ok){
+      state.nextSheetLostFrames=(state.nextSheetLostFrames||0)+1;
+      if(state.nextSheetLostFrames>=4){state.awaitingNextSheet=false;state.nextSheetLostFrames=0;state.autoScanLocked=false;state.autoScanStable=0;state.scanStableSince=0;state.autoScanLast=null;setScanGuide('searching','Lista para la siguiente hoja. Muéstrela completa.');if($('#captureBtn'))$('#captureBtn').disabled=false}
+      scheduleAutoScan(130);return;
+    }
+    const awaitingElapsed=Date.now()-(state.scanLastCaptureAt||0);
+    if(awaitingElapsed<2500){
+      state.nextSheetLostFrames=0;setScanGuide('ready',state.lastSavedSummary?`${state.lastSavedSummary} · Retire la hoja para continuar…`:'Retire la hoja ya guardada para continuar…');
+      scheduleAutoScan(130);return;
+    }
+    // La hoja anterior nunca desapareció del cuadro (la reemplazaron sin retirar la cámara).
+    // Dejamos de esperar y seguimos con la detección normal usando este mismo frame.
+    state.awaitingNextSheet=false;state.nextSheetLostFrames=0;state.autoScanLocked=false;state.autoScanStable=0;state.scanStableSince=0;state.autoScanLast=null;if($('#captureBtn'))$('#captureBtn').disabled=false;
   }
   if(!d.ok){
     state.autoScanStable=0;state.scanStableSince=0;state.autoScanLast=null;state.autoScanLost++;
