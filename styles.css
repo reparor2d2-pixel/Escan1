@@ -305,7 +305,14 @@ body.scan-live .scan-frame span{top:10%!important;font-size:16px!important;max-w
 .feedback-badge{position:absolute;display:grid;place-items:center;padding:0 4px;border-radius:999px;font-size:12px;font-weight:900;letter-spacing:.02em;color:#334155;background:rgba(255,255,255,.94);border:1.5px solid #cbd5e1;transform:translate(-50%,0)}
 .feedback-badge.multiple{color:#991b1b;border-color:#ef4444;background:rgba(255,245,245,.96)}
 .feedback-badge.blank{color:#475569;border-style:dashed;background:rgba(248,250,252,.95)}
-.batch-mode-toggle{grid-column:1/-1;padding:10px 12px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e3a8a}
+.scan-mode-toggle{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.scan-mode-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff;color:#1e3a8a;cursor:pointer;text-align:left}
+.scan-mode-btn strong{font-size:13px}
+.scan-mode-btn small{font-size:11px;color:#3b5aa6;font-weight:500}
+.scan-mode-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.scan-mode-btn.active small{color:#dbeafe}
+@media(max-width:520px){.scan-mode-toggle{grid-template-columns:1fr}}
+.scan-corrected-sheet{margin:12px auto;max-width:360px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
 @media print{
   body.printing-feedback .sidebar,body.printing-feedback .topbar,body.printing-feedback .main>.view,body.printing-feedback .menu-backdrop,body.printing-feedback #toast{display:none!important}
   body.printing-feedback .main{padding:0!important}

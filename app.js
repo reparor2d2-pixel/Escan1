@@ -30,7 +30,7 @@ const state={
   exams:readStored('ec_exams','[]'),
   results:readStored('ec_results','[]'),
   settings:readStored('ec_settings','{"minGrade":1,"maxGrade":7,"passGrade":4,"print":{}}'),
-  currentKey:[],stream:null,deferredPrompt:null,selectedResultId:null,autoScanTimer:null,autoScanBusy:false,scanBusySince:0,autoScanLocked:false,autoScanStable:0,autoScanLost:0,autoScanLast:null,autoScanOrientation:0,scanCopies:null,autoScanBest:null,scanProbeCanvas:null,autoScanDetection:null,autoScanLastGood:null,autoScanFrameCount:0,scanLastCaptureAt:0,scanStableSince:0,scanStartedAt:0,scanDetectionHistory:[],scanPaused:false,awaitingNextSheet:false,nextSheetLostFrames:0
+  currentKey:[],stream:null,deferredPrompt:null,selectedResultId:null,autoScanTimer:null,autoScanBusy:false,scanBusySince:0,autoScanLocked:false,autoScanStable:0,autoScanLost:0,autoScanLast:null,autoScanOrientation:0,scanCopies:null,autoScanBest:null,scanProbeCanvas:null,autoScanDetection:null,autoScanLastGood:null,autoScanFrameCount:0,scanLastCaptureAt:0,scanStableSince:0,scanStartedAt:0,scanDetectionHistory:[],scanPaused:false,awaitingNextSheet:false,nextSheetLostFrames:0,scanMode:'cascade',lastSavedSummary:''
 };
 window.state=state;
 const feedbackCaptureCache=new Map();
@@ -386,7 +386,13 @@ function drawVideoFrame(video,canvas,targetLong=960){
   canvas.width=Math.max(320,Math.round(vw*scale));canvas.height=Math.max(240,Math.round(vh*scale));
   const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(video,0,0,vw,vh,0,0,canvas.width,canvas.height);return true;
 }
-function batchScanEnabled(){return $('#batchScanMode')?.checked!==false}
+function batchScanEnabled(){return state.scanMode!=='individual'}
+function setScanMode(mode){
+  state.scanMode=mode==='individual'?'individual':'cascade';
+  localStorage.setItem(storageKey('ec_scan_mode'),state.scanMode);
+  $('#scanModeCascadeBtn')?.classList.toggle('active',state.scanMode==='cascade');
+  $('#scanModeIndividualBtn')?.classList.toggle('active',state.scanMode==='individual');
+}
 function resetAutoScan(){
   state.autoScanLocked=false;state.autoScanStable=0;state.autoScanLost=0;state.autoScanLast=null;state.autoScanBusy=false;state.scanBusySince=0;state.autoScanDetection=null;state.autoScanLastGood=null;state.autoScanFrameCount=0;state.scanStableSince=0;state.scanDetectionHistory=[];clearScanOverlay();
 }
@@ -430,7 +436,12 @@ async function startCamera(){
 }
 $('#startCameraBtn').onclick=startCamera;$('#captureBtn').onclick=()=>captureCurrentVideo(false);$('#exitCameraBtn').onclick=()=>stopCamera(true);
 $('#scanExamSelect').onchange=e=>{rememberScanExam(e.target.value);state.autoScanLocked=false;state.autoScanStable=0;state.scanStableSince=0;state.autoScanLastGood=null;setScanGuide('searching',`Evaluación fijada: ${e.target.options[e.target.selectedIndex]?.text||''}`);if(state.stream)scheduleAutoScan(80)};
-if($('#batchScanMode')){$('#batchScanMode').checked=localStorage.getItem(storageKey('ec_batch_scan'))!=='0';$('#batchScanMode').onchange=e=>{localStorage.setItem(storageKey('ec_batch_scan'),e.target.checked?'1':'0');toast(e.target.checked?'Modo lote automático activado.':'Modo lote automático desactivado.')}}
+{
+  const savedMode=localStorage.getItem(storageKey('ec_scan_mode'))||(localStorage.getItem(storageKey('ec_batch_scan'))==='0'?'individual':'cascade');
+  setScanMode(savedMode);
+  $('#scanModeCascadeBtn')?.addEventListener('click',()=>{setScanMode('cascade');toast('Corrección en cascada: corrige una hoja tras otra automáticamente.')});
+  $('#scanModeIndividualBtn')?.addEventListener('click',()=>{setScanMode('individual');toast('Corrección individual: revisa cada hoja antes de escanear la siguiente.')});
+}
 $('#scanTemplateCopies').onchange=e=>{state.scanCopies=Number(e.target.value);state.settings.scanCopies=state.scanCopies;save();resetAutoScan();updateScanGuideGeometry();setScanGuide('searching','Acerque la hoja: busco automáticamente sus cuatro esquinas')};
 window.addEventListener('resize',()=>requestAnimationFrame(updateScanGuideGeometry));document.addEventListener('visibilitychange',()=>{if(document.hidden&&state.stream)stopCamera(false)});
 $('#imageUpload').onchange=e=>{const file=e.target.files[0];if(!file)return;const img=new Image();img.onload=()=>{const c=$('#captureCanvas');c.width=img.width;c.height=img.height;c.getContext('2d').drawImage(img,0,0);processImage(c,null);URL.revokeObjectURL(img.src)};img.src=URL.createObjectURL(file)};
@@ -680,7 +691,9 @@ function showScanResult(e,answers,aligned=true,markerCount=6){
     const alignmentPct=Math.round((state.lastReadDiagnostics?.alignment||0)*100);
     const overallConfidence=Math.round(alignmentPct*.55+qConfidence*.45);
     const rows=reviewed.map((a,i)=>{const multi=a==='*';const requires=needsManual.has(i)&&!confirmedManual.has(i);const conf=questionConfidencePct(diagnostics[i]);const stateLabel=requires?`Revisar ${conf}%`:needsManual.has(i)?'Confirmada':`Leída ${conf}%`;return `<div class="scan-review-row ${requires?'needs-review':''}"><strong>${i+1}</strong><div class="scan-review-options">${letters.slice(0,e.options).map(l=>`<button type="button" data-review-q="${i}" data-review-a="${l}" class="${a===l?'selected':''}">${l}</button>`).join('')}<button type="button" data-review-q="${i}" data-review-a="" class="blank-choice ${!a?'selected':''}">—</button></div><span>${stateLabel}</span></div>`}).join('');
-    result.innerHTML=`<div class="result-summary"><div class="score-ring" style="--score:${m.pct*3.6}deg"><strong>${m.pct}%</strong></div><h3>${m.correct} de ${e.questions} correctas</h3><p class="scan-course">${esc(courseName(e.courseId))} · ${esc(e.name)}</p>${state.lastStudentNameCropDataUrl?`<div class="scan-name-crop"><span>Nombre capturado de la hoja</span><img src="${state.lastStudentNameCropDataUrl}" alt="Nombre manuscrito capturado"></div>`:''}<input id="studentNameScan" class="student-name-input" placeholder="Escriba el nombre para buscar y ordenar (opcional)" autocomplete="off"><div class="scan-confidence ${pending.length?'warn':'ok'}"><strong>Confianza OMR ${overallConfidence}%</strong><span>${pending.length?`${pending.length} respuesta(s) dudosa(s): confírmelas antes de guardar.`:'Lectura revisada y lista para guardar.'}</span></div><div class="result-grid"><div><span>Nota</span><strong>${m.grade}</strong></div><div><span>En blanco</span><strong>${m.blank}</strong></div><div><span>Múltiples</span><strong>${m.multiple}</strong></div></div><p>${aligned?`Hoja rectificada con ${markerCount} marcadores. Las respuestas dudosas requieren confirmación manual.`:'Lectura de respaldo.'}</p><div class="scan-review-list">${rows}</div><div class="scan-result-actions"><button id="saveNextScanBtn" class="primary" ${pending.length?'disabled':''}>Guardar y escanear siguiente</button><button id="saveScanBtn" class="secondary" ${pending.length?'disabled':''}>Guardar y ver resultados</button><button id="rescanBtn" class="ghost">Volver a escanear</button></div></div>`;
+    const scanCopies=state.lastReadDiagnostics?.copies||3;
+    const correctedSheetHtml=state.lastScanCaptureDataUrl?`<div class="feedback-sheet scan-corrected-sheet"><div class="feedback-stage" style="--feedback-aspect:${responseSheetAspectForCopies(scanCopies)};"><img class="feedback-base-image" src="${esc(state.lastScanCaptureDataUrl)}" alt="Hoja corregida"><div class="feedback-overlay">${feedbackOverlayHtml({answers:reviewed,templateCopies:scanCopies},e)}</div></div></div>`:'';
+    result.innerHTML=`<div class="result-summary"><div class="score-ring" style="--score:${m.pct*3.6}deg"><strong>${m.pct}%</strong></div><h3>${m.correct} de ${e.questions} correctas</h3><p class="scan-course">${esc(courseName(e.courseId))} · ${esc(e.name)}</p>${correctedSheetHtml}${state.lastStudentNameCropDataUrl?`<div class="scan-name-crop"><span>Nombre capturado de la hoja</span><img src="${state.lastStudentNameCropDataUrl}" alt="Nombre manuscrito capturado"></div>`:''}<input id="studentNameScan" class="student-name-input" placeholder="Escriba el nombre para buscar y ordenar (opcional)" autocomplete="off"><div class="scan-confidence ${pending.length?'warn':'ok'}"><strong>Confianza OMR ${overallConfidence}%</strong><span>${pending.length?`${pending.length} respuesta(s) dudosa(s): confírmelas antes de guardar.`:'Lectura revisada y lista para guardar.'}</span></div><div class="result-grid"><div><span>Nota</span><strong>${m.grade}</strong></div><div><span>En blanco</span><strong>${m.blank}</strong></div><div><span>Múltiples</span><strong>${m.multiple}</strong></div></div><p>${aligned?`Hoja rectificada con ${markerCount} marcadores. Las respuestas dudosas requieren confirmación manual.`:'Lectura de respaldo.'}</p><div class="scan-review-list">${rows}</div><div class="scan-result-actions"><button id="saveNextScanBtn" class="primary" ${pending.length?'disabled':''}>Guardar y escanear siguiente</button><button id="saveScanBtn" class="secondary" ${pending.length?'disabled':''}>Guardar y ver resultados</button><button id="rescanBtn" class="ghost">Volver a escanear</button></div></div>`;
     $$('[data-review-q]').forEach(b=>b.onclick=()=>{const i=+b.dataset.reviewQ;reviewed[i]=b.dataset.reviewA;if(needsManual.has(i))confirmedManual.add(i);render()});
     let saving=false,autoSaveScheduled=false;
     const saveResult=async continueScanning=>{
