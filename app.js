@@ -379,7 +379,7 @@ function resetAutoScan(){
 function stopCamera(showMessage=false){
   if(state.autoScanTimer){clearTimeout(state.autoScanTimer);state.autoScanTimer=null}
   if(state.stream){state.stream.getTracks().forEach(t=>t.stop());state.stream=null}
-  state.scanPaused=false;state.awaitingNextSheet=false;state.nextSheetLostFrames=0;state.lastSavedSummary='';resetAutoScan();document.body.classList.remove('scan-live');$('#cameraStage')?.classList.remove('is-live');const toolbar=$('.scan-live-toolbar');if(toolbar)toolbar.setAttribute('aria-hidden','true');if($('#video'))$('#video').srcObject=null;$('#cameraPlaceholder')?.classList.remove('hidden');if($('#captureBtn'))$('#captureBtn').disabled=true;setScanGuide('searching','Coloque aproximadamente cada esquina de la hoja dentro de los cuatro visores grandes');if(showMessage)toast('Camara cerrada.');
+  state.scanPaused=false;state.awaitingNextSheet=false;state.nextSheetLostFrames=0;state.lastSavedSummary='';resetAutoScan();document.body.classList.remove('scan-live');$('#cameraStage')?.classList.remove('is-live');const toolbar=$('.scan-live-toolbar');if(toolbar)toolbar.setAttribute('aria-hidden','true');if($('#video'))$('#video').srcObject=null;$('#cameraPlaceholder')?.classList.remove('hidden');if($('#captureBtn'))$('#captureBtn').disabled=false;setScanGuide('searching','Coloque aproximadamente cada esquina de la hoja dentro de los cuatro visores grandes');if(showMessage)toast('Camara cerrada.');
 }
 function captureCurrentVideo(auto=false){
   const video=$('#video'),canvas=$('#captureCanvas');if(!video?.videoWidth)return;
@@ -408,7 +408,7 @@ async function startCamera(){
     $('#cameraPlaceholder').classList.add('hidden');$('#captureBtn').disabled=false;document.body.classList.add('scan-live');$('#cameraStage').classList.add('is-live');$('.scan-live-toolbar')?.setAttribute('aria-hidden','false');state.scanPaused=false;state.awaitingNextSheet=false;state.nextSheetLostFrames=0;resetAutoScan();state.scanStartedAt=Date.now();setScanGuide('searching','Muestre la hoja completa. La captura esperará enfoque y estabilidad.');requestAnimationFrame(()=>{updateScanGuideGeometry();scheduleAutoScan()});toast('Cámara activa: acerque la hoja a los cuatro visores. No requiere precisión milimétrica.');
   }catch(err){console.error(err);stopCamera(false);toast('No fue posible abrir la camara. Revise los permisos y use HTTPS.')}
 }
-$('#startCameraBtn').onclick=startCamera;$('#captureBtn').onclick=()=>captureCurrentVideo(false);$('#exitCameraBtn').onclick=()=>stopCamera(true);
+$('#startCameraBtn').onclick=startCamera;$('#captureBtn').onclick=()=>{if(!state.stream){setScanMode('individual');startCamera();return}captureCurrentVideo(false)};$('#exitCameraBtn').onclick=()=>stopCamera(true);
 $('#scanExamSelect').onchange=e=>{rememberScanExam(e.target.value);state.autoScanLocked=false;state.autoScanStable=0;state.scanStableSince=0;state.autoScanLastGood=null;setScanGuide('searching',`Evaluación fijada: ${e.target.options[e.target.selectedIndex]?.text||''}`);if(state.stream)scheduleAutoScan(80)};
 {
   const savedMode=localStorage.getItem(storageKey('ec_scan_mode'))||(localStorage.getItem(storageKey('ec_batch_scan'))==='0'?'individual':'cascade');
