@@ -71,11 +71,27 @@ cambio** a `findBestMarkerPattern` y documentar el hallazgo aquí.
   `window.EvaluaCamOMR` directamente desde una página cargada con Playwright
   u otra herramienta headless.
 
-## Cambio que sí se aplicó en esta rama
+## Cambio probado y revertido: `ImageCapture.takePhoto()`
 
-Se agregó `captureHighResFrame()` (usa `ImageCapture.takePhoto()` cuando el
+Se agregó `captureHighResFrame()` (usaba `ImageCapture.takePhoto()` cuando el
 navegador/dispositivo lo soporta, para obtener un frame de mayor calidad que
 el stream de vídeo en vivo al momento de la captura final) con retroceso
-automático al método anterior (`drawVideoFrame` sobre el `<video>`) si no está
-disponible. No modifica la lógica de detección ni de lectura de burbujas, por
-lo que no debería introducir el riesgo descrito arriba.
+automático al método anterior (`drawVideoFrame` sobre el `<video>`) si no
+estaba disponible o si la llamada fallaba.
+
+**Probado en un celular real: la app se queda "pegada" tras capturar** (no
+muestra resultado, no permite revisión) y el botón "Capturar y corregir" deja
+de responder. Causa: `capture.takePhoto()` se cuelga (no resuelve ni
+rechaza) en ciertas combinaciones de Android/cámara — es un problema
+documentado de esa API, no específico de este código — y como
+`captureCurrentVideo` quedó esperando esa promesa sin límite de tiempo, todo
+el flujo de captura se congelaba indefinidamente (`state.autoScanBusy` nunca
+se liberaba).
+
+**Se revirtió el cambio por completo** (commit `26c799f`); `captureCurrentVideo`
+volvió a ser exactamente la versión síncrona con `drawVideoFrame` que ya
+funcionaba en producción. Si en el futuro se retoma esta idea, `takePhoto()`
+debe envolverse con un timeout corto (`Promise.race` con ~1-1.5s) que caiga de
+vuelta a `drawVideoFrame` si no resuelve a tiempo, y validarse de nuevo en un
+celular real antes de darla por buena — un timeout sin probar en dispositivo
+real no es garantía suficiente después de este hallazgo.
