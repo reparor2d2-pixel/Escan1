@@ -489,7 +489,7 @@ function timingSignatureEvidence(img,H,copies=1){
 }
 function orientationEvidence(img,H,copies=1){
   const g=sheetGeometryForCopies(copies),y1=Math.min(.94,g.timingTop+g.timingStep*10+g.timingBarH),x0=Math.max(.004,g.timingX-g.marker*.08),x1=Math.min(.15,g.timingX+g.marker*1.18),rx0=1-x1,rx1=1-x0;
-  const expected=sampleMappedDarkRatio(img,H,x0,g.timingTop-g.timingBarH,x1,y1),controls=[sampleMappedDarkRatio(img,H,rx0,g.timingTop-g.timingBarH,rx1,y1),sampleMappedDarkRatio(img,H,x0,.16,x1,.40),sampleMappedDarkRatio(img,H,rx0,.16,rx1,.40)],other=Math.max(...controls),raw=expected-other*.82,signature=timingSignatureEvidence(img,H,copies),evidence=clamp01((raw-.012)/.14)*.35+signature.score*.65;return {expected,other,raw,signature:signature.score,signatureMin:signature.min,evidence};
+  const expected=sampleMappedDarkRatio(img,H,x0,g.timingTop-g.timingBarH,x1,y1,9,26),controls=[sampleMappedDarkRatio(img,H,rx0,g.timingTop-g.timingBarH,rx1,y1,9,26),sampleMappedDarkRatio(img,H,x0,.16,x1,.40,9,26),sampleMappedDarkRatio(img,H,rx0,.16,rx1,.40,9,26)],other=Math.max(...controls),raw=expected-other*.82,signature=timingSignatureEvidence(img,H,copies),evidence=clamp01((raw-.012)/.14)*.35+signature.score*.65;return {expected,other,raw,signature:signature.score,signatureMin:signature.min,evidence};
 }
 function orientationMappings(pattern,aspect,copies=1){
   const specs=markerSpecsForAspect(aspect,copies),byId=Object.fromEntries(specs.map(p=>[p.id,p])),a0=pattern.a0,a1=pattern.a1,am=pattern.am,b0=pattern.b0,b1=pattern.b1,bm=pattern.bm;
@@ -510,7 +510,7 @@ function findBestMarkerPattern(candidates,img,aspectOptions){
     patterns.push({a0,a1,am:midA,b0,b1,bm:midB,coverage,observedAspect,format:bestFormat,markerCount:4+midCount,markerBackground,geom,quad});
   }
   patterns.sort((a,b)=>b.geom-a.geom);let best=null;
-  for(const p of patterns.slice(0,18))for(const mapping of orientationMappings(p,p.format.aspect,p.format.copies)){
+  for(const p of patterns.slice(0,10))for(const mapping of orientationMappings(p,p.format.aspect,p.format.copies)){
     const H=homographyLeastSquares(mapping.map(x=>x.canonical),mapping.map(x=>x.source));if(!H)continue;const orientation=orientationEvidence(img,H,p.format.copies),confidence=clamp01(p.geom*.74+orientation.evidence*.20+(p.markerCount/6)*.06),score=confidence+orientation.raw*.7;if(!best||score>best.score)best={...p,mapping,H,orientation,confidence,score};
   }
   return best;
