@@ -643,13 +643,13 @@ function cropStudentNameRegion(rectifiedCanvas,exam,copies=1){
   const out=document.createElement('canvas');out.width=Math.max(720,cropW);out.height=Math.max(150,Math.round(out.width*cropH/cropW));
   const oc=out.getContext('2d');oc.imageSmoothingEnabled=true;oc.imageSmoothingQuality='high';oc.fillStyle='#fff';oc.fillRect(0,0,out.width,out.height);
   oc.drawImage(rectifiedCanvas,x,y,cropW,cropH,0,0,out.width,out.height);
-  try{return out.toDataURL('image/jpeg',.90)}catch(_){return ''}
+  try{return out.toDataURL('image/jpeg',.78)}catch(_){return ''}
 }
 function processImage(canvas,hint=null){
   const id=$('#scanExamSelect').value,exam=state.exams.find(x=>x.id===id);if(!exam){toast('Seleccione una prueba.');return false}
   const rectified=rectifyByMarkers(canvas,hint);if(!rectified){setScanGuide('adjust','No se pudo aislar la hoja completa');toast('No se pudo leer la hoja. Muestre la hoja completa, sin cubrir los marcadores, y vuelva a intentarlo.');return false}
   const reading=readAnswersFromRectified(rectified,exam);
-  try{state.lastScanCaptureDataUrl=rectified.canvas.toDataURL('image/jpeg',0.88);state.lastStudentNameCropDataUrl=cropStudentNameRegion(rectified.canvas,exam,rectified.copies)}catch(err){state.lastScanCaptureDataUrl='';state.lastStudentNameCropDataUrl=''}
+  try{state.lastScanCaptureDataUrl=rectified.canvas.toDataURL('image/jpeg',0.68);state.lastStudentNameCropDataUrl=cropStudentNameRegion(rectified.canvas,exam,rectified.copies)}catch(err){state.lastScanCaptureDataUrl='';state.lastStudentNameCropDataUrl=''}
   state.lastReadDiagnostics={ambiguous:reading.ambiguous,alignment:rectified.quality,copies:rectified.copies,markerCount:rectified.markerCount,scores:reading.scores};showScanResult(exam,reading.answers,true,rectified.markerCount);toast('Hoja detectada y corregida automaticamente.');return true;
 }
 window.EvaluaCamOMR={detectSheetOnCanvas,rectifyByMarkers,readAnswersFromRectified,processImage};
@@ -677,11 +677,19 @@ function showScanResult(e,answers,aligned=true,markerCount=6){
     result.innerHTML=`<div class="result-summary"><div class="score-ring" style="--score:${m.pct*3.6}deg"><strong>${m.pct}%</strong></div><h3>${m.correct} de ${e.questions} correctas</h3><p class="scan-course">${esc(courseName(e.courseId))} · ${esc(e.name)}</p>${correctedSheetHtml}${state.lastStudentNameCropDataUrl?`<div class="scan-name-crop"><span>Nombre capturado de la hoja</span><img src="${state.lastStudentNameCropDataUrl}" alt="Nombre manuscrito capturado"></div>`:''}<input id="studentNameScan" class="student-name-input" placeholder="Escriba el nombre para buscar y ordenar (opcional)" autocomplete="off"><div class="scan-confidence ${pending.length?'warn':'ok'}"><strong>Confianza OMR ${overallConfidence}%</strong><span>${pending.length?`${pending.length} respuesta(s) dudosa(s): confírmelas antes de guardar.`:'Lectura revisada y lista para guardar.'}</span></div><div class="result-grid"><div><span>Nota</span><strong>${m.grade}</strong></div><div><span>En blanco</span><strong>${m.blank}</strong></div><div><span>Múltiples</span><strong>${m.multiple}</strong></div></div><p>${aligned?`Hoja rectificada con ${markerCount} marcadores. Las respuestas dudosas requieren confirmación manual.`:'Lectura de respaldo.'}</p><div class="scan-review-list">${rows}</div><div class="scan-result-actions"><button id="saveNextScanBtn" class="primary" ${pending.length?'disabled':''}>Guardar y escanear siguiente</button><button id="saveScanBtn" class="secondary" ${pending.length?'disabled':''}>Guardar y ver resultados</button><button id="rescanBtn" class="ghost">Volver a escanear</button></div></div>`;
     $$('[data-review-q]').forEach(b=>b.onclick=()=>{const i=+b.dataset.reviewQ;reviewed[i]=b.dataset.reviewA;if(needsManual.has(i))confirmedManual.add(i);render()});
     let saving=false,autoSaveScheduled=false;
-    const saveResult=async continueScanning=>{
+    const saveResult=continueScanning=>{
       if(saving)return;const pendingNow=unresolved();if(pendingNow.length){state.scanPaused=true;return toast(`Revise ${pendingNow.length} respuesta(s) dudosa(s) antes de guardar.`)}saving=true;
-      const buttons=$$('.scan-result-actions button');buttons.forEach(b=>b.disabled=true);const current=calculate(),student=$('#studentNameScan')?.value.trim()||'Sin nombre',now=new Date().toISOString(),saved={id:crypto.randomUUID(),examId:e.id,examName:e.name,courseId:e.courseId,student,correct:current.correct,total:e.questions,pct:current.pct,grade:current.grade,date:now,updatedAt:now,revision:1,answers:[...reviewed],scanConfidence:Math.round((state.lastReadDiagnostics?.alignment||0)*100),omrConfidence:overallConfidence,uncertainCount:needsManual.size,markerCount:state.lastReadDiagnostics?.markerCount||markerCount,templateCopies:state.lastReadDiagnostics?.copies||3,nameImageDataUrl:state.lastStudentNameCropDataUrl||'',cloudStatus:'saving'};
-      state.results.unshift(saved);state.selectedResultId=saved.id;window.EvaluaCamResultImages?.remember?.(saved.id,saved.nameImageDataUrl);save();renderStats();toast('Guardando resultado, nombre y respaldo…');
-      try{const remote=await window.EvaluaCamCloud?.saveResult?.(saved,state.lastScanCaptureDataUrl||'',state.lastStudentNameCropDataUrl||'');if(remote?.ok){saved.captureUrl=remote.captureUrl||'';saved.captureId=remote.captureId||'';saved.nameImageUrl=remote.nameImageUrl||'';saved.nameImageId=remote.nameImageId||'';saved.cloudStatus='saved';window.EvaluaCamResultImages?.remember?.(saved.id,saved.nameImageDataUrl);saved.nameImageDataUrl='';save();toast('Resultado guardado. Retire la hoja.')}else if(window.EvaluaCamCloud?.isConfigured?.()){saved.cloudStatus='pending';save();toast('Guardado localmente. Se sincronizará cuando haya conexión.')}}catch(err){saved.cloudStatus='pending';save();toast('Guardado localmente. Revise la conexión con Google.')}
+      const buttons=$$('.scan-result-actions button');buttons.forEach(b=>b.disabled=true);
+      const current=calculate(),student=$('#studentNameScan')?.value.trim()||'Sin nombre',now=new Date().toISOString();
+      const captureDataUrl=state.lastScanCaptureDataUrl||'',nameCropDataUrl=state.lastStudentNameCropDataUrl||'';
+      const saved={id:crypto.randomUUID(),examId:e.id,examName:e.name,courseId:e.courseId,student,correct:current.correct,total:e.questions,pct:current.pct,grade:current.grade,date:now,updatedAt:now,revision:1,answers:[...reviewed],scanConfidence:Math.round((state.lastReadDiagnostics?.alignment||0)*100),omrConfidence:overallConfidence,uncertainCount:needsManual.size,markerCount:state.lastReadDiagnostics?.markerCount||markerCount,templateCopies:state.lastReadDiagnostics?.copies||3,nameImageDataUrl:nameCropDataUrl,cloudStatus:'saving'};
+      state.results.unshift(saved);state.selectedResultId=saved.id;window.EvaluaCamResultImages?.remember?.(saved.id,saved.nameImageDataUrl);save();renderStats();
+      toast(window.EvaluaCamCloud?.isConfigured?.()?'Guardado. Subiendo a Google en segundo plano…':'Resultado guardado.');
+      // La subida a Drive/Sheets sigue en segundo plano: no bloquea el siguiente escaneo.
+      window.EvaluaCamCloud?.saveResult?.(saved,captureDataUrl,nameCropDataUrl).then(remote=>{
+        if(remote?.ok){saved.captureUrl=remote.captureUrl||'';saved.captureId=remote.captureId||'';saved.nameImageUrl=remote.nameImageUrl||'';saved.nameImageId=remote.nameImageId||'';saved.cloudStatus='saved';window.EvaluaCamResultImages?.remember?.(saved.id,nameCropDataUrl);saved.nameImageDataUrl='';save();if($('#results')?.classList.contains('active'))renderResults()}
+        else if(window.EvaluaCamCloud?.isConfigured?.()){saved.cloudStatus='pending';save()}
+      }).catch(()=>{saved.cloudStatus='pending';save()});
       state.lastScanCaptureDataUrl='';state.lastStudentNameCropDataUrl='';
       state.lastSavedSummary=`✓ ${student}: ${current.correct}/${e.questions} (${current.pct}%)`;
       if(continueScanning){
